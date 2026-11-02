@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- The strictest policy a page can have: everything from this site, nothing inline. Flinders needs nothing more. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; form-action 'none'" />
+    <title>Flinders demo</title>
+    <meta name="description" content="Guided walkthroughs over a real screen: try Show me, Guide me and recording. Nothing leaves this page." />
+    <link rel="stylesheet" href="./player.css" />
+    <link rel="stylesheet" href="./demo.css" />
+  </head>
+  <body>
+    <header>
+      <a href="#/" class="brand" data-testid="home">Field notes</a>
+      <button type="button" id="show-me" data-testid="show-me">Show me</button>
+      <button type="button" id="guide-me" data-testid="guide-me">Guide me</button>
+      <button type="button" id="record" data-testid="record">Record your own</button>
+    </header>
+    <div id="offer" role="region" aria-label="A walkthrough for this page"></div>
+    <main id="page"></main>
+    <section id="recorded" aria-label="What you recorded" hidden>
+      <h2>You recorded <span id="recorded-count"></span></h2>
+      <button type="button" id="play-recorded">Play it back</button>
+      <pre id="recorded-steps" dir="ltr" tabindex="0"></pre>
+    </section>
+    <footer>
+      <p>
+        This is a pretend app. Flinders plays over its real buttons and pages, with an in-memory server in the page, so
+        nothing you do here leaves your browser.
+      </p>
+      <label><input type="checkbox" id="rtl" /> Right to left</label>
+    </footer>
+    <p id="toast" role="status"></p>
+    <script type="module" src="./demo.js"></script>
+  </body>
+</html>

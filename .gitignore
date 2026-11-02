@@ -1,0 +1,6 @@
+node_modules
+dist
+.angular
+examples/*/package-lock.json
+examples/demo/site
+*.tgz
