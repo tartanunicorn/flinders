@@ -2,7 +2,11 @@
 
 Each version says what changed and what to do. Flinders follows [semantic versions](https://semver.org): before 1.0, a minor version can break things.
 
-## 0.1.0 (unreleased)
+## 0.1.1 (unreleased)
+
+- `examples/nextjs`: Flinders on the Next.js App Router, with the routes served from one route handler on Postgres. Nothing in the package changed.
+
+## 0.1.0
 
 The first release.
 

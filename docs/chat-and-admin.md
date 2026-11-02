@@ -1,6 +1,6 @@
 # Chat and admin
 
-Flinders has no chat or admin screens. It gives you JSON and you draw them in your own product, so they look like the rest of it. `examples/react` and `examples/angular` show a small version of each.
+Flinders has no chat or admin screens. It gives you JSON and you draw them in your own product, so they look like the rest of it. `examples/react`, `examples/angular` and `examples/nextjs` show a small version of each.
 
 Examples here take `q`, your query function from the [quick start](quick-start.md).
 

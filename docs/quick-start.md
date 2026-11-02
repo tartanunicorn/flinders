@@ -11,10 +11,10 @@ npm install
 npm pack
 ```
 
-`npm pack` builds it and writes `flinders-0.1.0.tgz`. Keep that file in your repo, then from your app:
+`npm pack` builds it and writes `flinders-0.1.1.tgz`. Keep that file in your repo, then from your app:
 
 ```sh
-npm install ./vendor/flinders-0.1.0.tgz pg express
+npm install ./vendor/flinders-0.1.1.tgz pg express
 ```
 
 ## 2. Create the tables
@@ -107,7 +107,7 @@ Not on Node? The routes are the same in any language: see [the server contract](
 
 ## 6. Add it to your page
 
-`createFlinders` takes what you already have, one connector each. Call it where your app starts, before your router. The router connector needs the current URL, a way to go somewhere, and a call after each move. `examples/react` and `examples/angular` show it for React Router and Angular; `yourRouter` below stands for yours.
+`createFlinders` takes what you already have, one connector each. Call it where your app starts, before your router. The router connector needs the current URL, a way to go somewhere, and a call after each move. `examples/react`, `examples/angular` and `examples/nextjs` show it for React Router, Angular and the Next.js App Router; `yourRouter` below stands for yours.
 
 ```js
 import { createFlinders } from 'flinders';

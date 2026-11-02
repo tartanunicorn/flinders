@@ -7,7 +7,7 @@ Guided walkthroughs over your product's real screens, kept in your own database.
 - **Recording**: click through your app and the steps write themselves. Someone who doesn't code can make a walkthrough.
 - **Your own screens**: your chat and admin get plain JSON, so they look like the rest of your product.
 
-It works with any framework. React and Angular examples are included, and `examples/demo` needs no server at all.
+It works with any framework. React, Angular and Next.js examples are included, and `examples/demo` needs no server at all.
 
 ## What Flinders does for you
 
@@ -29,8 +29,8 @@ You need Node 20+, Postgres 15+ and an app with a client-side router. The server
 Build a package from a copy of this folder, then add it to your app:
 
 ```sh
-cd flinders && npm install && npm pack          # gives flinders-0.1.0.tgz
-cd ../your-app && npm install ../flinders/flinders-0.1.0.tgz pg express
+cd flinders && npm install && npm pack          # gives flinders-0.1.1.tgz
+cd ../your-app && npm install ../flinders/flinders-0.1.1.tgz pg express
 psql "$DATABASE_URL" -f node_modules/flinders/sql/001_walkthroughs.sql
 ```
 
@@ -103,7 +103,7 @@ console.log(flinders.off); // What's off, and which connector would turn it on.
 
 Open the home page and say yes to the offer. That's all the wiring there is: each page's walkthrough is offered as people move about, their progress is saved, and a no is remembered. Nothing else needs calling.
 
-`examples/react` and `examples/angular` show the `router` connector for React Router and Angular.
+`examples/react`, `examples/angular` and `examples/nextjs` show the `router` connector for React Router, Angular and the Next.js App Router. The Next.js one also serves the routes from a route handler.
 
 ## What you call
 

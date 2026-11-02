@@ -8,7 +8,7 @@ const SRC = join(dirname(fileURLToPath(import.meta.url)), '..', 'src');
 /** Every file under a folder, leaving out an example's own installs and builds (its link back here would never end). */
 function ownFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    if (['node_modules', 'dist', '.angular', 'package-lock.json', 'vendor', 'composer.lock'].includes(entry.name)) return [];
+    if (['node_modules', 'dist', '.angular', '.next', 'next-env.d.ts', 'package-lock.json', 'vendor', 'composer.lock'].includes(entry.name)) return [];
     const path = join(dir, entry.name);
     return entry.isDirectory() ? ownFiles(path) : [path];
   });
@@ -25,7 +25,7 @@ describe('the package stays portable', () => {
   });
 
   it('keeps framework examples to themselves: they reach no further than this folder', () => {
-    for (const example of ['react', 'angular']) {
+    for (const example of ['react', 'angular', 'nextjs']) {
       const manifest = JSON.parse(readFileSync(join(SRC, '..', 'examples', example, 'package.json'), 'utf8'));
       const versions = Object.values<string>({ ...manifest.dependencies, ...manifest.devDependencies });
       expect(manifest.dependencies.flinders, example).toBe('file:../..');
