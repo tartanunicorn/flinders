@@ -64,7 +64,7 @@ Only give the AI what it should see: the prompt carries `source`, the lists and 
 - **An answer that isn't JSON** is an empty draft with a note, so the person sees what happened. JSON with fences or a sentence around it is read as usual.
 - **A failed `ask` rejects** with your error, and nothing stands in for it: a made-up draft would look like a real proposal.
 - **The AI never sets** `mode`, `article`, `permission`, `offer_on`, `number` or `status`. `mode` and `article` come from you, and the rest stay unset until a person chooses.
-- **`retiredWords` can be a list** in your `AppChecks`: `['widget', 'bore log']` catches any case, a plural, and the words with a hyphen or no space. The list is also put in the prompt. A `RegExp` still checks, but can't be listed in the prompt.
+- **`retiredWords` can be a list** in your `AppChecks`: `['widget', 'work order']` catches any case, a plural, and the words with a hyphen or no space. The list is also put in the prompt. A `RegExp` still checks, but can't be listed in the prompt.
 
 ## When your AI is behind a queue
 

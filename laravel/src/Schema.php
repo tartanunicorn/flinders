@@ -420,7 +420,7 @@ final class Schema
 
     // ── checks ───────────────────────────────────────────────────────────────
 
-    /** `retiredPattern`: `bore log` also catches `Borelogs` and `bore-log`. */
+    /** `retiredPattern`: `work order` also catches `Workorders` and `work-order`. */
     private static function retiredPattern(array|string $words): ?string
     {
         if (is_string($words) || ! $words) {

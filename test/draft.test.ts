@@ -10,7 +10,7 @@ const app: DraftApp = {
   routes: ['/items', '/items/:itemId'],
   anchorExists: (id) => ['new-item-btn', 'items-grid'].includes(id) || id.startsWith('nav-'),
   routeExists: (route) => ['/items', '/items/:itemId'].includes(route),
-  retiredWords: ['widget', 'bore log'],
+  retiredWords: ['widget', 'work order'],
 };
 const source = { title: 'Add an item', body: '## Add an item\nPress the button.' };
 const good = { anchor: 'new-item-btn', route: '/items', title: 'Start', body: 'Press **+ New item**.', missing: 'centred' };
@@ -57,8 +57,8 @@ describe('retired words', () => {
     const step = (body: string) => walkthroughStepSchema.parse({ ...good, body });
     const problems = (body: string) => stepProblems([step(body)], app);
     expect(problems('Pick a Widgets row.')).toEqual(['step 1: “Widgets” is a retired word']);
-    expect(problems('Open the borelog.')).toEqual(['step 1: “borelog” is a retired word']);
-    expect(problems('Open the bore-log.')).toEqual(['step 1: “bore-log” is a retired word']);
+    expect(problems('Open the workorder.')).toEqual(['step 1: “workorder” is a retired word']);
+    expect(problems('Open the work-order.')).toEqual(['step 1: “work-order” is a retired word']);
     expect(problems('Open the widgetry.')).toEqual([]);
     expect(stepProblems([step('A widget.')], { ...app, retiredWords: [] })).toEqual([]);
   });
@@ -143,7 +143,7 @@ describe('draftWalkthrough', () => {
     const ask = vi.fn(async () => ({ title: 'Add one', steps: [good] }));
     const { file, notes } = await draftWalkthrough({ source, mode: 'show', app, ask, instructions: 'Say item.', article: 'add-an-item' });
     expect(ask).toHaveBeenCalledTimes(1);
-    expect(ask).toHaveBeenCalledWith(buildDraftRequest({ source, mode: 'show', anchors: app.anchors, prefixes: app.prefixes, routes: app.routes, retiredWords: ['widget', 'bore log'], instructions: 'Say item.' }));
+    expect(ask).toHaveBeenCalledWith(buildDraftRequest({ source, mode: 'show', anchors: app.anchors, prefixes: app.prefixes, routes: app.routes, retiredWords: ['widget', 'work order'], instructions: 'Say item.' }));
     expect(file).toEqual({ slug: 'add-one', title: 'Add one', mode: 'show', article: 'add-an-item', steps: [good] });
     expect(notes).toEqual([]);
   });

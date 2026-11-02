@@ -194,7 +194,7 @@ export function appChecks(lists: AppLists = {}): AppChecks {
   };
 }
 
-/** A list of words as the pattern `stepProblems` checks: `bore log` also catches `Borelogs` and `bore-log`. */
+/** A list of words as the pattern `stepProblems` checks: `work order` also catches `Workorders` and `work-order`. */
 function retiredPattern(words: RegExp | readonly string[] | undefined): RegExp | null {
   if (!words || words instanceof RegExp) return words ?? null;
   if (!words.length) return null;
