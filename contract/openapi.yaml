@@ -1,0 +1,464 @@
+openapi: 3.1.0
+info:
+  title: Flinders backend
+  version: 1.0.0
+  description: >-
+    What any Flinders backend serves, in any language. Paths sit under a base the product sets.
+    The rules that a shape can't show are in docs/server-contract.md, and the conformance kit
+    (conformance/) checks both. Sign-in is the product's own: a route answers 401 without it.
+    Every failure is the Error shape, with `message` in plain words for a person.
+    Walkthrough ids are strings; a `walkthroughId` on an admin route may also be a number (`4`) or
+    a handle (`4-add-a-project`), found by the number, so a renamed walkthrough keeps its links.
+servers:
+  - url: /{base}
+    variables:
+      base:
+        default: flinders
+security:
+  - product: []
+tags:
+  - name: person
+    description: For anyone signed in, about themselves.
+  - name: admin
+    description: For people who may manage walkthroughs. Each works on the owner the person belongs to.
+paths:
+  /walkthroughs:
+    get:
+      operationId: listWalkthroughs
+      tags: [person]
+      summary: Every live walkthrough this person can read. Offering is decided in the browser.
+      responses:
+        '200':
+          description: The product's own first, then by number.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Walkthrough' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /progress:
+    get:
+      operationId: getMyProgress
+      tags: [person]
+      summary: This person's offers switch and progress.
+      responses:
+        '200': { $ref: '#/components/responses/MyWalkthroughs' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /offers:
+    patch:
+      operationId: setOffers
+      tags: [person]
+      summary: The offers switch. Off stops offers only; asking for a walkthrough still works.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [offer_walkthroughs]
+              properties:
+                offer_walkthroughs: { type: boolean }
+      responses:
+        '200': { $ref: '#/components/responses/MyWalkthroughs' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '501': { $ref: '#/components/responses/FeatureOff' }
+  /walkthroughs/{walkthroughId}/events:
+    post:
+      operationId: recordEvent
+      tags: [person]
+      summary: One event from the player, saved as this person's one row for the walkthrough.
+      parameters:
+        - { $ref: '#/components/parameters/walkthroughId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WalkthroughEvent' }
+      responses:
+        '200': { $ref: '#/components/responses/MyWalkthroughs' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /recording-links/check:
+    post:
+      operationId: checkRecordingLink
+      tags: [person]
+      summary: Whether this person may use a link. A good one comes back fresh, so the clock runs from when it's used.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecordingLinkBody' }
+      responses:
+        '200':
+          description: The answer, good or bad. A bad link is not an error here.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecordingLinkCheck' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '501': { $ref: '#/components/responses/FeatureOff' }
+  /recording-links/drafts:
+    post:
+      operationId: saveRecording
+      tags: [person]
+      summary: A finished recording, saved as a new draft by the person who created the link.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [link, steps]
+              properties:
+                link: { type: string, minLength: 1, maxLength: 1024 }
+                steps:
+                  description: Steps as recorded. Blank words are filled with placeholder words.
+                  type: array
+                  minItems: 1
+                  maxItems: 30
+                  items: { type: object }
+      responses:
+        '201': { $ref: '#/components/responses/Saved' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: The link was refused.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '501': { $ref: '#/components/responses/FeatureOff' }
+  /admin/walkthroughs:
+    get:
+      operationId: adminList
+      tags: [admin]
+      summary: Every walkthrough of the person's owner, with its newest and live versions.
+      responses:
+        '200':
+          description: By number.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/AdminWalkthrough' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      operationId: adminUpload
+      tags: [admin]
+      summary: A walkthrough file, always saved as a draft. A file with a number adds a version to that walkthrough; without one it is a new walkthrough with the owner's next number.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '../schema/walkthrough.schema.json' }
+      responses:
+        '201': { $ref: '#/components/responses/Saved' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /admin/walkthroughs/{walkthroughId}:
+    get:
+      operationId: adminDetail
+      tags: [admin]
+      summary: Every version of one walkthrough, newest first, and its stats.
+      parameters:
+        - { $ref: '#/components/parameters/walkthroughRef' }
+      responses:
+        '200':
+          description: The walkthrough.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminWalkthroughDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /admin/walkthroughs/{walkthroughId}/versions:
+    post:
+      operationId: adminSaveVersion
+      tags: [admin]
+      summary: Make live, Make inactive or Restore. Copies a version into the next one with this status.
+      parameters:
+        - { $ref: '#/components/parameters/walkthroughRef' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [from_version, status]
+              properties:
+                from_version: { type: integer, minimum: 1 }
+                status: { $ref: '#/components/schemas/WalkthroughStatus' }
+      responses:
+        '201': { $ref: '#/components/responses/Saved' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /admin/walkthroughs/{walkthroughId}/stats:
+    get:
+      operationId: adminStats
+      tags: [admin]
+      summary: How far people got. The same as `stats` in the detail.
+      parameters:
+        - { $ref: '#/components/parameters/walkthroughRef' }
+      responses:
+        '200':
+          description: From people's progress rows.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WalkthroughStats' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /admin/recording-links:
+    post:
+      operationId: adminCreateRecordingLink
+      tags: [admin]
+      summary: A signed link that lasts 30 minutes, and the address that opens the app ready to record.
+      responses:
+        '201':
+          description: The link.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [link, url, expires_at]
+                properties:
+                  link: { type: string }
+                  url: { type: string }
+                  expires_at: { type: string, format: date-time }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '501': { $ref: '#/components/responses/FeatureOff' }
+components:
+  securitySchemes:
+    product:
+      type: http
+      scheme: bearer
+      description: The product's own sign-in, whatever that is.
+  parameters:
+    walkthroughId:
+      name: walkthroughId
+      in: path
+      required: true
+      description: The walkthrough's original id.
+      schema: { type: string }
+    walkthroughRef:
+      name: walkthroughId
+      in: path
+      required: true
+      description: Its original id, its number or its handle.
+      schema: { type: string }
+  responses:
+    MyWalkthroughs:
+      description: This person's offers switch and progress.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/MyWalkthroughs' }
+    Saved:
+      description: The version saved.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SavedVersion' }
+    Invalid:
+      description: Something a person can fix, said in plain words (`validation_failed`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Nobody is signed in (`unauthorized`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: This person may not do this (`forbidden`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: No such walkthrough or version, or one this person can't see (`not_found`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    FeatureOff:
+      description: This backend hasn't set the feature up (`feature_off`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, description: 'validation_failed, unauthorized, forbidden, not_found, feature_off' }
+            message: { type: string, minLength: 1 }
+    WalkthroughStatus:
+      type: string
+      enum: [draft, live, inactive]
+    WalkthroughMode:
+      type: string
+      enum: [show, guide]
+    Steps:
+      type: array
+      minItems: 1
+      maxItems: 30
+      items: { $ref: '../schema/walkthrough.schema.json#/definitions/step' }
+    Walkthrough:
+      type: object
+      required: [walkthrough_id, number, handle, version, slug, title, mode, permission, offer_on, reoffer_from, article_slug, articles, steps]
+      properties:
+        walkthrough_id: { type: string, description: 'The id of its first version, the same on every version.' }
+        number: { type: integer, minimum: 1, description: 'Its identity for people and files, per owner.' }
+        handle: { type: string, description: '`<number>-<slug>`' }
+        version: { type: integer, minimum: 1 }
+        slug: { type: string }
+        title: { type: string }
+        mode: { $ref: '#/components/schemas/WalkthroughMode' }
+        permission: { type: [string, 'null'] }
+        offer_on: { type: [string, 'null'] }
+        reoffer_from: { type: integer, minimum: 1, description: The version a person must have seen not to be offered it again. }
+        article_slug: { type: [string, 'null'] }
+        articles: { $ref: '../schema/walkthrough.schema.json#/definitions/articleHints' }
+        steps: { $ref: '#/components/schemas/Steps' }
+    WalkthroughProgress:
+      type: object
+      required: [v, status, step, at]
+      properties:
+        v: { type: integer, minimum: 1, description: The version they saw. }
+        status: { type: string, enum: [started, paused, completed, dismissed] }
+        step: { type: integer, minimum: 0 }
+        at: { type: string, format: date-time }
+    MyWalkthroughs:
+      type: object
+      required: [offer_walkthroughs, progress]
+      properties:
+        offer_walkthroughs: { type: boolean, description: True until they turn it off. }
+        progress:
+          description: Keyed by original id.
+          type: object
+          additionalProperties: { $ref: '#/components/schemas/WalkthroughProgress' }
+    WalkthroughEvent:
+      type: object
+      additionalProperties: false
+      required: [event, version, step]
+      properties:
+        event: { type: string, enum: [started, paused, completed, dismissed, step] }
+        version: { type: integer, minimum: 1 }
+        step: { type: integer, minimum: 0, maximum: 29 }
+        how: { type: string, enum: [next, back, done, skipped], description: 'On a step event.' }
+        from: { type: string, enum: [offer, article, checklist, chat, list, dev], description: Where it was started from. }
+    SavedVersion:
+      type: object
+      required: [walkthrough_id, number, handle, version, status, saved]
+      properties:
+        walkthrough_id: { type: string }
+        number: { type: integer, minimum: 1 }
+        handle: { type: string }
+        version: { type: integer, minimum: 1 }
+        status: { $ref: '#/components/schemas/WalkthroughStatus' }
+        saved: { type: boolean, description: False only when a seed found the newest version already the same. }
+    AdminWalkthrough:
+      type: object
+      required: [walkthrough_id, number, handle, slug, title, mode, latest_version, latest_status, live_version, article_slug, article_title, permission, offer_on, reoffer_from, steps_count, updated_at, updated_by, problems]
+      properties:
+        walkthrough_id: { type: string }
+        number: { type: integer, minimum: 1 }
+        handle: { type: string }
+        slug: { type: string }
+        title: { type: string }
+        mode: { $ref: '#/components/schemas/WalkthroughMode' }
+        latest_version: { type: integer, minimum: 1 }
+        latest_status: { $ref: '#/components/schemas/WalkthroughStatus' }
+        live_version: { type: [integer, 'null'], description: The version people get. Null when none is live. }
+        article_slug: { type: [string, 'null'] }
+        article_title: { type: [string, 'null'] }
+        permission: { type: [string, 'null'] }
+        offer_on: { type: [string, 'null'] }
+        reoffer_from: { type: integer, minimum: 1 }
+        steps_count: { type: integer, minimum: 0 }
+        updated_at: { type: string, format: date-time }
+        updated_by: { type: [string, 'null'] }
+        problems:
+          description: What is wrong with the live version in this build. Non-empty = Needs update.
+          type: array
+          items: { type: string }
+    AdminWalkthroughVersion:
+      type: object
+      required: [version, status, slug, title, mode, article_slug, articles, permission, offer_on, reoffer_from, steps, created_at, created_by, problems]
+      properties:
+        version: { type: integer, minimum: 1 }
+        status: { $ref: '#/components/schemas/WalkthroughStatus' }
+        slug: { type: string }
+        title: { type: string }
+        mode: { $ref: '#/components/schemas/WalkthroughMode' }
+        article_slug: { type: [string, 'null'] }
+        articles: { $ref: '../schema/walkthrough.schema.json#/definitions/articleHints' }
+        permission: { type: [string, 'null'] }
+        offer_on: { type: [string, 'null'] }
+        reoffer_from: { type: integer, minimum: 1 }
+        steps: { type: array }
+        created_at: { type: string, format: date-time }
+        created_by: { type: [string, 'null'] }
+        problems:
+          type: array
+          items: { type: string }
+    WalkthroughStats:
+      type: object
+      required: [people, finished, reached, actions_done]
+      properties:
+        people: { type: integer, minimum: 0, description: Rows of progress. }
+        finished: { type: integer, minimum: 0, description: Rows now completed. }
+        reached:
+          description: '`reached[2]` = how many got as far as the third step of the newest version.'
+          type: array
+          items: { type: integer, minimum: 0 }
+        actions_done: { type: integer, minimum: 0, description: 'Steps people did themselves, across everyone.' }
+    AdminWalkthroughDetail:
+      type: object
+      required: [walkthrough_id, number, handle, versions, stats]
+      properties:
+        walkthrough_id: { type: string }
+        number: { type: integer, minimum: 1 }
+        handle: { type: string }
+        versions:
+          type: array
+          items: { $ref: '#/components/schemas/AdminWalkthroughVersion' }
+        stats: { $ref: '#/components/schemas/WalkthroughStats' }
+    RecordingLinkBody:
+      type: object
+      additionalProperties: false
+      required: [link]
+      properties:
+        link: { type: string, minLength: 1, maxLength: 1024 }
+    RecordingLinkCheck:
+      oneOf:
+        - type: object
+          required: [valid, created_by, expires_at, link]
+          properties:
+            valid: { const: true }
+            created_by: { type: string }
+            expires_at: { type: string, format: date-time }
+            link: { type: string, description: A fresh link, to use from now on. }
+        - type: object
+          required: [valid, reason]
+          properties:
+            valid: { const: false }
+            reason: { type: string, enum: [invalid, expired, not_allowed], description: "not_allowed = genuine, but not this person's, or they may no longer record." }

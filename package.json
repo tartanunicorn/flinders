@@ -1,0 +1,106 @@
+{
+  "name": "flinders",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Guided walkthroughs over your product's real screens, kept in your own database. Show me, Guide me and recording, for any framework.",
+  "keywords": [
+    "walkthrough",
+    "product-tour",
+    "onboarding",
+    "guided-tour",
+    "user-onboarding",
+    "in-app-guidance"
+  ],
+  "license": "MIT",
+  "author": "Simon Hardham",
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "files": [
+    "dist",
+    "src",
+    "bin",
+    "sql",
+    "schema",
+    "contract",
+    "docs",
+    "CHANGELOG.md",
+    "SECURITY.md"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./player": {
+      "types": "./dist/player.d.ts",
+      "default": "./dist/player.js"
+    },
+    "./recorder-bar": {
+      "types": "./dist/recorder-bar.d.ts",
+      "default": "./dist/recorder-bar.js"
+    },
+    "./recording-tab": {
+      "types": "./dist/recording-tab.d.ts",
+      "default": "./dist/recording-tab.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
+    },
+    "./draft": {
+      "types": "./dist/draft.d.ts",
+      "default": "./dist/draft.js"
+    },
+    "./conformance": {
+      "types": "./dist/conformance/index.d.ts",
+      "default": "./dist/conformance/index.js"
+    },
+    "./player.css": "./src/player.css",
+    "./sql/*": "./sql/*",
+    "./schema/walkthrough.schema.json": "./schema/walkthrough.schema.json",
+    "./contract/openapi.yaml": "./contract/openapi.yaml",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "flinders-check": "./bin/flinders-check.mjs",
+    "flinders-conformance": "./bin/flinders-conformance.mjs"
+  },
+  "scripts": {
+    "build": "node -e \"fs.rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json && tsc -p tsconfig.conformance.json",
+    "prepack": "npm run build",
+    "test": "vitest run",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "demo": "npm run build && node examples/demo/build.mjs"
+  },
+  "dependencies": {
+    "driver.js": "1.10.2",
+    "zod": "^4.6.6"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "@types/pg": "^8.11.0",
+    "ajv": "^8.17.0",
+    "esbuild": "^0.28.1",
+    "jsdom": "^28.0.0",
+    "pg": "^8.13.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0",
+    "yaml": "^2.8.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tartanunicorn/flinders.git"
+  },
+  "homepage": "https://github.com/tartanunicorn/flinders#readme",
+  "bugs": {
+    "url": "https://github.com/tartanunicorn/flinders/issues"
+  }
+}

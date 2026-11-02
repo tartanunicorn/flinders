@@ -1,0 +1,22 @@
+{
+    "name": "flinders/laravel",
+    "description": "The Flinders walkthrough server for Laravel and MySQL: the same HTTP contract as flinders/server, so the browser code works against either.",
+    "type": "library",
+    "license": "MIT",
+    "authors": [{ "name": "Simon Hardham" }],
+    "require": {
+        "php": "^8.2",
+        "illuminate/database": "^12.0|^13.0",
+        "illuminate/http": "^12.0|^13.0",
+        "illuminate/routing": "^12.0|^13.0",
+        "illuminate/support": "^12.0|^13.0"
+    },
+    "autoload": {
+        "psr-4": { "Flinders\\Laravel\\": "src/" }
+    },
+    "extra": {
+        "laravel": {
+            "providers": ["Flinders\\Laravel\\FlindersServiceProvider"]
+        }
+    }
+}

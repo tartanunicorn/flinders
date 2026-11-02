@@ -1,0 +1,10 @@
+# The existing conformance kit and contract, unchanged, plus the rig's own checks.
+FROM node:22-alpine
+WORKDIR /kit
+COPY conformance conformance
+COPY contract contract
+COPY schema schema
+COPY src src
+COPY test/contract.ts test/contract.ts
+COPY laravel/docker/kit.ts laravel/docker/kit.ts
+RUN npm init -y >/dev/null && npm pkg set type=module >/dev/null && npm install --no-audit --no-fund tsx@4 ajv@8 yaml@2 zod@3 driver.js@1

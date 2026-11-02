@@ -1,0 +1,24 @@
+{
+  "name": "flinders-example-angular",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "ng serve",
+    "build": "ng build"
+  },
+  "dependencies": {
+    "@angular/common": "^22.0.0",
+    "@angular/compiler": "^22.0.0",
+    "@angular/core": "^22.0.0",
+    "@angular/platform-browser": "^22.0.0",
+    "@angular/router": "^22.0.0",
+    "flinders": "file:../..",
+    "rxjs": "^7.8.0"
+  },
+  "devDependencies": {
+    "@angular/build": "^22.0.6",
+    "@angular/cli": "^22.0.6",
+    "@angular/compiler-cli": "^22.0.0",
+    "typescript": "~6.0.2"
+  }
+}

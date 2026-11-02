@@ -1,0 +1,200 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "walkthrough.schema.json",
+  "title": "Walkthrough file",
+  "description": "A guided walkthrough over a product's real screens. The package also trims title and body before measuring them, so it can allow a padded text this schema refuses, never the other way round.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["slug", "title", "steps"],
+  "properties": {
+    "format_version": {
+      "description": "Which format the file is written in. The maximum is the newest format this package reads.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1,
+      "default": 1
+    },
+    "number": {
+      "description": "The walkthrough's identity, the same on every version. Without one, the file starts a new walkthrough.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 999999999
+    },
+    "slug": { "description": "Its readable name.", "$ref": "#/definitions/slug" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "\\S" },
+    "mode": {
+      "description": "show (the default): read and press Next. guide: do the real thing.",
+      "type": "string",
+      "enum": ["show", "guide"]
+    },
+    "article": {
+      "description": "The article it belongs to (Learn more).",
+      "anyOf": [{ "$ref": "#/definitions/slug" }, { "type": "null" }]
+    },
+    "articles": {
+      "description": "The articles most relevant to it, for the product's chat: a url, an id or a slug. Never fetched or checked.",
+      "$ref": "#/definitions/articleHints"
+    },
+    "permission": {
+      "description": "The permission a person needs. A product can narrow this to its own list.",
+      "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 120 }, { "type": "null" }]
+    },
+    "offer_on": {
+      "description": "Route pattern where it is offered the first time.",
+      "anyOf": [{ "$ref": "#/definitions/route" }, { "type": "null" }]
+    },
+    "reoffer_from": {
+      "description": "Raise this to the new version to offer it again to people who saw an older one.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "status": { "type": "string", "enum": ["draft", "live", "inactive"] },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 30,
+      "items": { "$ref": "#/definitions/step" }
+    }
+  },
+  "definitions": {
+    "anchor": {
+      "description": "The element's anchor, such as its data-testid (kebab-case).",
+      "type": "string",
+      "maxLength": 80,
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "nullableAnchor": {
+      "anyOf": [{ "$ref": "#/definitions/anchor" }, { "type": "null" }]
+    },
+    "slug": { "type": "string", "maxLength": 120, "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "route": { "type": "string", "maxLength": 200, "pattern": "^/" },
+    "articleHints": {
+      "type": "array",
+      "maxItems": 5,
+      "items": { "type": "string", "minLength": 1, "maxLength": 500 }
+    },
+    "side": { "type": "string", "enum": ["top", "bottom", "left", "right"] },
+    "stepTitle": { "type": "string", "minLength": 1, "maxLength": 80, "pattern": "\\S" },
+    "stepBody": { "type": "string", "minLength": 1, "maxLength": 400, "pattern": "\\S" },
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["anchor", "title", "body", "missing"],
+      "properties": {
+        "anchor": {
+          "description": "null = a centred card with nothing highlighted.",
+          "$ref": "#/definitions/nullableAnchor"
+        },
+        "route": { "description": "Route pattern the step is on.", "$ref": "#/definitions/route" },
+        "title": { "$ref": "#/definitions/stepTitle" },
+        "body": { "$ref": "#/definitions/stepBody" },
+        "side": { "$ref": "#/definitions/side" },
+        "align": { "type": "string", "enum": ["start", "center", "end"] },
+        "wait_for": {
+          "description": "appear = wait while the page loads. person = wait for the person to act.",
+          "type": "string",
+          "enum": ["appear", "person"]
+        },
+        "advance_on_click": {
+          "description": "The person clicks the real control to go on, in either kind; Next is hidden.",
+          "type": "boolean"
+        },
+        "done_when": {
+          "description": "In a guide walkthrough, what moves the step on.",
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind"],
+              "properties": { "kind": { "type": "string", "enum": ["clicked", "filled", "chosen"] } }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "anchor"],
+              "properties": {
+                "kind": { "type": "string", "const": "appears" },
+                "anchor": { "$ref": "#/definitions/anchor" }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "route"],
+              "properties": {
+                "kind": { "type": "string", "const": "route" },
+                "route": { "$ref": "#/definitions/route" }
+              }
+            }
+          ]
+        },
+        "only_if": {
+          "description": "Show this step only while one of these elements is on screen; otherwise it is skipped.",
+          "oneOf": [
+            { "$ref": "#/definitions/anchor" },
+            { "type": "array", "items": { "$ref": "#/definitions/anchor" }, "minItems": 1, "maxItems": 5 }
+          ]
+        },
+        "optional": {
+          "description": "What's highlighted can be used, and the person still presses Next.",
+          "type": "boolean"
+        },
+        "help_after": {
+          "description": "Seconds before a guide step offers help finding the element.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 120
+        },
+        "blocked": {
+          "description": "Things that stop a person doing this step: when one shows, the card says this instead.",
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["anchor", "body"],
+            "properties": {
+              "anchor": { "$ref": "#/definitions/anchor" },
+              "title": { "$ref": "#/definitions/stepTitle" },
+              "body": { "$ref": "#/definitions/stepBody" }
+            }
+          }
+        },
+        "phone": {
+          "description": "Phones and touch screens: different element or copy, or skip the step.",
+          "anyOf": [
+            { "type": "string", "const": "skip" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "anchor": { "$ref": "#/definitions/nullableAnchor" },
+                "title": { "$ref": "#/definitions/stepTitle" },
+                "body": { "$ref": "#/definitions/stepBody" },
+                "side": { "$ref": "#/definitions/side" }
+              }
+            }
+          ]
+        },
+        "articles": {
+          "description": "The articles most relevant to this step, for the product's chat: a url, an id or a slug. Never fetched or checked.",
+          "$ref": "#/definitions/articleHints"
+        },
+        "missing": {
+          "description": "When the element isn't there: another element, a centred card, or end the walkthrough.",
+          "anyOf": [
+            { "type": "string", "enum": ["centred", "end"] },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "alt": { "$ref": "#/definitions/anchor" },
+                "body": { "$ref": "#/definitions/stepBody" }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

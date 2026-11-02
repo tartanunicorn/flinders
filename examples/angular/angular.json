@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "cli": { "analytics": false, "cache": { "enabled": false } },
+  "projects": {
+    "example": {
+      "projectType": "application",
+      "root": "",
+      "sourceRoot": "src",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "browser": "src/main.ts",
+            "index": "src/index.html",
+            "tsConfig": "tsconfig.json",
+            "styles": ["node_modules/flinders/src/player.css"],
+            "outputPath": "dist"
+          }
+        },
+        "serve": {
+          "builder": "@angular/build:dev-server",
+          "options": { "buildTarget": "example:build" }
+        }
+      }
+    }
+  }
+}

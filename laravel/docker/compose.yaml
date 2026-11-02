@@ -1,0 +1,64 @@
+# Runs the conformance kit against a Laravel test app on MySQL. From packages/flinders/laravel:
+#   docker compose -f docker/compose.yaml up --build --abort-on-container-exit --exit-code-from kit
+# Nothing is published to the host, and the database lives in memory.
+name: flinders-laravel-conformance
+
+services:
+  mysql:
+    image: mysql:8.4
+    # Binary logging is on here, as on most hosts: see "Triggers" in the README.
+    command: ["--log-bin-trust-function-creators=1"]
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+      MYSQL_DATABASE: flinders
+      MYSQL_USER: flinders
+      MYSQL_PASSWORD: flinders
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uflinders", "-pflinders"]
+      interval: 2s
+      retries: 60
+
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.app
+      args:
+        LARAVEL_VERSION: ${LARAVEL_VERSION:-^13}
+    command:
+      - sh
+      - -c
+      - php artisan config:cache && php artisan migrate:fresh --force --seeder=Database\\Seeders\\TestSeeder && exec php -S 0.0.0.0:8000 -t public public/index.php
+    environment:
+      APP_ENV: testing
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_DATABASE: flinders
+      DB_USERNAME: flinders
+      DB_PASSWORD: flinders
+      SESSION_DRIVER: array
+      CACHE_STORE: array
+      PHP_CLI_SERVER_WORKERS: "8"
+      FLINDERS_RECORDING_SECRET: conformance-secret
+      FLINDERS_WEB_URL: https://app.example.com
+      RIG_VERSIONS_TABLE: ${RIG_VERSIONS_TABLE:-knowledge_base_walkthroughs}
+      RIG_PROGRESS_TABLE: ${RIG_PROGRESS_TABLE:-knowledge_base_walkthroughs_progress}
+      RIG_OWNER_COLUMN: ${RIG_OWNER_COLUMN:-owner_id}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8000/up"]
+      interval: 2s
+      retries: 60
+
+  kit:
+    build:
+      context: ../..
+      dockerfile: laravel/docker/Dockerfile.kit
+    command: ["npx", "tsx", "laravel/docker/kit.ts", "http://app:8000/flinders"]
+    depends_on:
+      app:
+        condition: service_healthy
