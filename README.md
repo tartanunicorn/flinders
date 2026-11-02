@@ -1,6 +1,6 @@
 # Flinders
 
-Guided walkthroughs over your product's real screens, kept in your own database. No hosted service and no vendor script: a library in your app and a few routes on your server.
+Open-source product tours and user onboarding: guided walkthroughs over your product's real screens, kept in your own database. No hosted service and no vendor script: a library in your app and a few routes on your server. An open-source alternative to hosted tools like Appcues, Pendo and Userpilot, with more than a tour library like Shepherd.js or Intro.js: progress, recording and where people stop. See [how it compares](docs/compared.md).
 
 - **Show me**: the person reads a card on each step and presses Next.
 - **Guide me**: they do the real thing on the real screen, and each step moves on by itself.
@@ -120,6 +120,7 @@ Left out, a connector turns that feature off, and `flinders.off` says so in plai
 ## Docs
 
 - [Quick start](docs/quick-start.md): the five minutes above, step by step
+- [Flinders compared](docs/compared.md): against tour libraries and hosted tools, and when to choose each
 - [Recording](docs/recording.md): the bar, your own bar, and an admin on a different site from your app
 - [The file format](docs/file-format.md): every field of a walkthrough, and writing steps and forks
 - [Matching your design](docs/matching-your-design.md): your colours, your classes or your own card

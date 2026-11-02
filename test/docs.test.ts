@@ -9,7 +9,7 @@ import { createFileSchema, stepProblems, walkthroughStepSchema } from '../src/se
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const doc = (name: string) => readFileSync(join(ROOT, 'docs', name), 'utf8');
-const DOCS = ['install.md', 'rollout-checklist.md', 'quick-start.md', 'recording.md', 'checking.md', 'server-contract.md', 'file-format.md', 'matching-your-design.md', 'chat-and-admin.md', 'show-me-where.md', 'ai-drafts.md'];
+const DOCS = ['compared.md', 'install.md', 'rollout-checklist.md', 'quick-start.md', 'recording.md', 'checking.md', 'server-contract.md', 'file-format.md', 'matching-your-design.md', 'chat-and-admin.md', 'show-me-where.md', 'ai-drafts.md'];
 
 describe('the docs match the code', () => {
   it('explains every field of the file format', () => {
