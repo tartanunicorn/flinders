@@ -44,6 +44,28 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "player": [
+        "./dist/player.d.ts"
+      ],
+      "recorder-bar": [
+        "./dist/recorder-bar.d.ts"
+      ],
+      "recording-tab": [
+        "./dist/recording-tab.d.ts"
+      ],
+      "server": [
+        "./dist/server.d.ts"
+      ],
+      "draft": [
+        "./dist/draft.d.ts"
+      ],
+      "conformance": [
+        "./dist/conformance/index.d.ts"
+      ]
+    }
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
