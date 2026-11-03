@@ -96,13 +96,7 @@ Copy the two `INSERT … ON CONFLICT` statements from `saveProgress` and `saveSt
 
 ### Recording links
 
-Use this format, and the kit can test expiry with your secret:
-
-```text
-<payload>.<signature>
-payload    base64url of the JSON { "by": <user id>, "exp": <ms since 1970>, "purpose": "walkthrough-recording" }
-signature  base64url of HMAC-SHA256(secret, "walkthrough-recording." + payload)
-```
+Use the link format in [Recording links](server-contract.md#recording-links), and the kit can test expiry with your secret.
 
 - **Base64url has no `=` padding.** Compare signatures with `CryptographicOperations.FixedTimeEquals`.
 - **A link lasts 30 minutes.** A good check answers `{ valid: true, created_by, expires_at, link }` with a fresh link, so the clock runs from when it's used.
