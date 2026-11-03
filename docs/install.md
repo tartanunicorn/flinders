@@ -31,7 +31,7 @@ Look in the codebase first. Ask the person only what isn't there, all at once. S
 | Laravel, PHP and database versions | `composer.json`, `config/database.php`, `SELECT VERSION()` | **Stop if** it's below Laravel 11, PHP 8.2 or MySQL 8.0.16, or it's MariaDB |
 | Can the migration create triggers? | `SELECT @@log_bin, @@log_bin_trust_function_creators` as the app's database user | `1` and `0`, without `SUPER`, means error 1419 in step 3. Before migrating, have the flag set, or set `FLINDERS_APPEND_ONLY_TRIGGERS=false`. See "Triggers" in [the Laravel README](../laravel/README.md) |
 | Where admin and web live | Root folders, `angular.json`, deploy config | One Angular workspace or two; the paths in step 2 |
-| Angular version and `moduleResolution` | `package.json`, `tsconfig.json` | `bundler`, `node16`, `nodenext` and the older `node` all resolve Flinders' entry points, so leave it as it is. Flinders itself doesn't depend on Angular; the samples below use `@if` and `@for`, so they need Angular 17 or later |
+| Angular version and `moduleResolution` | `package.json`, `tsconfig.json` | `bundler`, `node16`, `nodenext` and the older `node` all resolve Flinders' entry points, so leave it as it is. Flinders itself doesn't depend on Angular; the samples below use `@if` and `@for`, so they need Angular 18 or later |
 | The router on each site | `app.config.ts` or `app.routes.ts` | Where `routes` come from; whether `withHashLocation` is on (it's fine: the link is read before the router starts) |
 | The first code that runs on web | `main.ts` | Where the one line of `RecordingTab` goes |
 | How web knows who's signed in | The auth service, a guard | `identity.id`. If sign-in opens another tab, change it to stay in this one, or the link is left behind |

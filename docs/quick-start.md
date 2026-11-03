@@ -103,7 +103,7 @@ Three things are worth setting later, each one line in `createFlinders`:
 - `app: { anchors, pages }`: your real elements and pages, so a typo is refused and a renamed element shows as **Needs update**. See [Checking files against your app](checking.md).
 - `recording: { secret, webUrl, mayRecord }`: for an admin on a different site from your app. See [Recording](recording.md).
 
-Not on Node? The routes are the same in any language: see [the server contract](server-contract.md).
+Not on Node? The routes are the same in any language: see [the server contract](server-contract.md), and [Your own server](own-backend.md) for writing them in .NET or anything else.
 
 ## 6. Add it to your page
 

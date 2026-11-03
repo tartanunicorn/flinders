@@ -6,7 +6,7 @@ A Flinders backend can be in any language. What keeps them the same is a definit
 - This page lists the rules a shape can't show.
 - `flinders-conformance` drives a running backend through all of it.
 
-A backend that passes the kit works with the browser side as it comes. `flinders/server` is one implementation of this contract, not a special one. On a TypeScript server, use it and skip to [Running the kit](#running-the-kit). On Laravel and MySQL, use `flinders/laravel`: see `laravel/README.md`.
+A backend that passes the kit works with the browser side as it comes. `flinders/server` is one implementation of this contract, not a special one. On a TypeScript server, use it and skip to [Running the kit](#running-the-kit). On Laravel and MySQL, use `flinders/laravel`: see `laravel/README.md`. In any other language, such as .NET, [Your own server](own-backend.md) is the route-by-route guide.
 
 ## The routes
 
