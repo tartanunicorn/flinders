@@ -1,5 +1,7 @@
 -- The two walkthrough tables for a new product. Rename them freely and pass the names to
 -- createWalkthroughRepository. Add row-level security to suit the product's tenants.
+-- A server in another language (.NET, Go, ...) runs this file as it is: the triggers draw numbers
+-- under a lock and refuse edits, so its code needs neither. See docs/own-backend.md.
 --
 -- walkthroughs: one row per version, never edited or deleted. Every change saves the next version,
 -- so history, drafts beside a live version and Restore all work. owner_id null = the product's own;

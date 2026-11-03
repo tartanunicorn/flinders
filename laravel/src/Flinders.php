@@ -16,6 +16,9 @@ use stdClass;
  * The server: `createFlinders` (server-flinders.ts), the repository (repository.ts) and recording
  * links (recording-link.ts), on MySQL. One public method per route. Comments name the function each
  * decision mirrors, so the two stay in step; the conformance kit proves they do.
+ *
+ * Porting the server to another language, such as C#? This class and Schema.php are the closest
+ * shape to copy, and docs/own-backend.md maps each route to its method here.
  */
 class Flinders
 {

@@ -129,6 +129,7 @@ Left out, a connector turns that feature off, and `flinders.off` says so in plai
 - [Checking files against your app](docs/checking.md): the `flinders-check` command, and "Needs update"
 - [AI first drafts](docs/ai-drafts.md): plug in the AI service you already have
 - [The server contract](docs/server-contract.md): what any backend must do, in any language, and the kit that proves it
+- [Your own server](docs/own-backend.md): writing that backend in .NET or another language, route by route
 - [Install on Laravel and Angular](docs/install.md): one document a coding agent follows from a single prompt
 - [Rollout checklist](docs/rollout-checklist.md): what to check on a real product before going live
 
@@ -150,7 +151,7 @@ A pretend app with Show me, Guide me and recording. Its server is in the page, a
 | Browsers | The last two versions of Chrome, Edge, Firefox and Safari, phones and tablets too |
 | Node | 20 or newer, for `flinders/server` and the two commands |
 | Postgres | 15 or newer. MySQL through `laravel/` |
-| Frameworks | Any. Examples for React 19, Angular 22 and none |
+| Frameworks | Any. Examples for React 19, Angular 22 and none. The Angular code works from Angular 18 |
 | Pages | Light and dark, phone and desktop, left-to-right and right-to-left, and a strict Content Security Policy with no `unsafe-inline` |
 
 Sizes, minified and gzipped: the browser code about 18 kB, the player's Driver.js 8 kB more when a walkthrough first starts, and `player.css` 3 kB. Zod is used only on the server.

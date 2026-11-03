@@ -7,7 +7,7 @@ One page for the person in charge of adding Flinders to a Laravel and Angular pr
 | Check | How | If not |
 |---|---|---|
 | MySQL 8.0.16 or newer, not MariaDB | `SELECT VERSION()` | MariaDB isn't supported: stop |
-| Laravel 12+, PHP 8.2+ | `composer.json` | Upgrade first |
+| Laravel 11+, PHP 8.2+ | `composer.json` | Upgrade first |
 | Migrations can create triggers | `SELECT @@log_bin, @@log_bin_trust_function_creators` as the app's database user. `1` and `0` will fail with error 1419 | Have the host set `log_bin_trust_function_creators=1`, or set `FLINDERS_APPEND_ONLY_TRIGGERS=false` |
 | Admin and web see the same user id for one person | Compare what each site's `/me` returns | Choose a fix from [Fixing `not_allowed`](install.md#fixing-not_allowed) first. A separate admin table needs a linking column |
 | The API can allow both sites | `config/cors.php` | Add both origins. No `*` with cookies |

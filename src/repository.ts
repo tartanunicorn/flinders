@@ -3,6 +3,9 @@
  * two tables (sql/001_walkthroughs.sql). It never opens a connection: each call takes the product's
  * own `FlindersQuery`, so the product's tenancy, row-level security and audit stay in charge. Admin screens and
  * chats are the product's own; these return the JSON they draw from.
+ *
+ * Writing the server in another language? The SQL here is the Postgres to copy, and
+ * docs/own-backend.md maps each route to the function below that serves it.
  */
 import { z } from 'zod';
 

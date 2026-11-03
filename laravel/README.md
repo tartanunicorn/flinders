@@ -2,7 +2,7 @@
 
 The Flinders server for Laravel and MySQL. It serves the same HTTP contract as `flinders/server`, so the browser code works against either, and the same conformance kit proves both.
 
-Needs PHP 8.2+, Laravel 12 or 13, and MySQL 8.0.16+ (tested on PHP 8.4 and MySQL 8.4). MariaDB isn't supported.
+Needs PHP 8.2+, Laravel 11, 12 or 13, and MySQL 8.0.16+ (tested on PHP 8.4 and MySQL 8.4). MariaDB isn't supported.
 
 Installing a whole product, with an Angular admin and app on different domains? Follow [Install on Laravel and Angular](../docs/install.md), which a coding agent can run from one prompt. This page is the reference for the server on its own.
 
@@ -125,7 +125,7 @@ It builds a fresh Laravel app with this package, on MySQL, and runs the conforma
 - MySQL itself refuses an edit or a delete;
 - features left off answer `feature_off`.
 
-Set `LARAVEL_VERSION='^12'` to try another Laravel. Add `RIG_VERSIONS_TABLE`, `RIG_PROGRESS_TABLE` and `RIG_OWNER_COLUMN` to try other names.
+Set `LARAVEL_VERSION='^11'` or `'^12'` to try another Laravel. Add `RIG_VERSIONS_TABLE`, `RIG_PROGRESS_TABLE` and `RIG_OWNER_COLUMN` to try other names.
 
 ## Differences from the TypeScript server
 

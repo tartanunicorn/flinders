@@ -4,7 +4,11 @@ Each version says what changed and what to do. Flinders follows [semantic versio
 
 ## 0.1.1 (unreleased)
 
-- `examples/nextjs`: Flinders on the Next.js App Router, with the routes served from one route handler on Postgres. Nothing in the package changed.
+- `examples/nextjs`: Flinders on the Next.js App Router, with the routes served from one route handler on Postgres.
+- `flinders/laravel` now installs on Laravel 11 as well as 12 and 13. The conformance kit passes on 11.50 and 11.57.
+- The subpath entry points (`flinders/player`, `flinders/recording-tab` and the rest) now type-check under `"moduleResolution": "node"`, through `typesVersions`. Nothing to change in your tsconfig.
+- The install guide no longer says the Angular samples need Angular 22: they use `@if` and `@for`, so Angular 18 or later.
+- [Your own server](docs/own-backend.md): a route-by-route guide to writing the server in another language, worked for .NET and Postgres.
 
 ## 0.1.0
 

@@ -9,7 +9,7 @@ import { createFileSchema, stepProblems, walkthroughStepSchema } from '../src/se
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const doc = (name: string) => readFileSync(join(ROOT, 'docs', name), 'utf8');
-const DOCS = ['compared.md', 'install.md', 'rollout-checklist.md', 'quick-start.md', 'recording.md', 'checking.md', 'server-contract.md', 'file-format.md', 'matching-your-design.md', 'chat-and-admin.md', 'show-me-where.md', 'ai-drafts.md'];
+const DOCS = ['compared.md', 'install.md', 'rollout-checklist.md', 'quick-start.md', 'recording.md', 'checking.md', 'server-contract.md', 'file-format.md', 'matching-your-design.md', 'chat-and-admin.md', 'show-me-where.md', 'ai-drafts.md', 'own-backend.md'];
 
 describe('the docs match the code', () => {
   it('explains every field of the file format', () => {
@@ -21,6 +21,11 @@ describe('the docs match the code', () => {
   it('lists every rule of the conformance kit and every route of the contract', () => {
     const text = doc('server-contract.md');
     expect(RULES.map(([id]) => id).filter((id) => !text.includes(`\`${id}\``))).toEqual([]);
+    expect(Object.values(FLINDERS_ROUTES).filter((route) => !text.includes(`${route.method} \`${route.path}\``))).toEqual([]);
+  });
+
+  it('maps every route of the contract in the guide to writing your own server', () => {
+    const text = doc('own-backend.md');
     expect(Object.values(FLINDERS_ROUTES).filter((route) => !text.includes(`${route.method} \`${route.path}\``))).toEqual([]);
   });
 
