@@ -101,8 +101,13 @@ export interface FlindersConfig<T extends FlindersTypes = DefaultFlindersTypes> 
   hasUnsavedWork?(): boolean;
   /** Your words for names whose own words are vague, for `elements()`. */
   meanings?: Record<string, string>;
-  /** Nothing is offered while this is true. Offers already wait for a walkthrough or a recording to finish. */
+  /** Nothing is offered while this is true. Offers already wait for a walkthrough (from the moment it starts) or a recording to finish. */
   pauseOffers?(): boolean;
+  /**
+   * True: a walkthrough the person left part-way (Finish later, Esc, another page) is offered again
+   * on its page. Only Done and Not now stop it. False (the default): anything they did counts as seen.
+   */
+  reofferUnfinished?: boolean;
   /** Called whenever what the controller shows changes. */
   onChange?(view: WalkthroughsView<T['walkthrough']>): void;
   /** Called whenever what the recording bar shows changes. */
@@ -164,7 +169,10 @@ export function createFlinders<T extends FlindersTypes = DefaultFlindersTypes>(c
 
   const own = config.player && 'start' in config.player ? config.player : null;
   const look = config.player && !('start' in config.player) ? config.player : {};
+  /** A card is on screen. */
   let playing = false;
+  /** Starts under way, before their first card: a first page can take a while to open. */
+  let starting = 0;
   const built =
     !own && router
       ? new WalkthroughPlayer({
@@ -176,6 +184,11 @@ export function createFlinders<T extends FlindersTypes = DefaultFlindersTypes>(c
           onActive: (active) => {
             playing = !!active;
             look.onActive?.(active);
+          },
+          // Started by hand (`flinders.player.start`) as well as from the controller: an offer up now has been overtaken.
+          onStart: (walkthrough) => {
+            controller?.clearOffer();
+            look.onStart?.(walkthrough);
           },
         })
       : null;
@@ -212,7 +225,15 @@ export function createFlinders<T extends FlindersTypes = DefaultFlindersTypes>(c
       },
     },
     can: (permission) => identity?.can(permission) ?? false,
-    play: (walkthrough, options) => player?.start(walkthrough, options) ?? Promise.resolve(false),
+    play: async (walkthrough, options) => {
+      if (!player) return false;
+      starting++;
+      try {
+        return await player.start(walkthrough, options);
+      } finally {
+        starting--;
+      }
+    },
     showOffer: (offer) =>
       new Promise((resolve) => {
         settleOffer = resolve;
@@ -225,9 +246,10 @@ export function createFlinders<T extends FlindersTypes = DefaultFlindersTypes>(c
     },
     toast,
     ...(config.learnMore ? { learnMore: (slug: string) => config.learnMore?.(slug) } : {}),
-    offersPaused: () => !offers || playing || !!recorder?.view.busy || !!config.pauseOffers?.(),
+    offersPaused: () => !offers || playing || starting > 0 || !!built?.busy || !!recorder?.view.busy || !!config.pauseOffers?.(),
     ...(config.onChange ? { onChange: (view: WalkthroughsView<T['walkthrough']>) => config.onChange?.(view) } : {}),
     ...(config.labels ? { labels: config.labels } : {}),
+    ...(config.reofferUnfinished ? { reofferUnfinished: true } : {}),
   });
   const controller = api ? new WalkthroughController<T['walkthrough']>(host(api)) : null;
 

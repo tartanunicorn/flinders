@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createFlinders, createFlindersClient, fillPath, FLINDERS_ROUTES, type FlindersHttpRequest, type FlindersRouter } from '../src/index.js';
+import { createFlinders, createFlindersClient, fillPath, FLINDERS_ROUTES, type FlindersHttpRequest, type FlindersRouter, type OfferAnswer } from '../src/index.js';
+import type { WalkthroughPlayer } from '../src/player.js';
 
 const router: FlindersRouter = { url: () => '/', navigate: async () => true, onNavigated: () => () => undefined, routePattern: (url) => url };
 
@@ -139,5 +140,76 @@ describe('createFlinders', () => {
     await createFlinders({ http: { request }, events, player: { start } }).controller?.start('1', 'list');
     expect(events).toHaveBeenCalledWith(expect.objectContaining({ type: 'walkthrough', walkthrough_id: 'w', event: 'started', version: 2, from: 'list' }));
     expect(calls.some((c) => c.route === 'recordEvent')).toBe(true);
+  });
+});
+
+describe('createFlinders: offers and a walkthrough just started', () => {
+  const live = { walkthrough_id: 'w', number: 1, version: 1, slug: 's', title: 'Home', mode: 'show', permission: null, offer_on: '/home', reoffer_from: 1, article_slug: null, steps: [{ anchor: 'late', route: '/home', title: 'Here', body: 'B', missing: 'centred' }] };
+
+  function app(url = '/') {
+    const listeners: ((url: string) => void)[] = [];
+    const router: FlindersRouter = {
+      url: () => url,
+      navigate: async (to) => {
+        url = to;
+        listeners.forEach((l) => l(to));
+        return true;
+      },
+      onNavigated: (listener) => {
+        listeners.push(listener);
+        return () => undefined;
+      },
+    };
+    const shown: string[] = [];
+    const clear = vi.fn();
+    const { request } = backend({ listWalkthroughs: { data: [live] }, getMyProgress: { offer_walkthroughs: true, progress: {} }, recordEvent: { offer_walkthroughs: true, progress: {} } });
+    const flinders = createFlinders({ http: { request }, router, identity: { can: () => true }, offers: { show: (offer) => (shown.push(offer.title), new Promise<OfferAnswer>(() => undefined)), clear } });
+    return { flinders, shown, clear, url: () => url };
+  }
+
+  beforeEach(async () => {
+    // Loaded once here, so the player's own import of it doesn't wait on real time.
+    await import('driver.js');
+    vi.useFakeTimers();
+    document.body.innerHTML = '';
+    Element.prototype.getBoundingClientRect = () => ({ width: 100, height: 30, top: 10, left: 10, right: 110, bottom: 40, x: 10, y: 10, toJSON: () => ({}) }) as DOMRect;
+    window.matchMedia = ((query: string) => ({ matches: false, media: query })) as unknown as typeof window.matchMedia;
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    document.body.innerHTML = '';
+  });
+
+  it('offers nothing while a walkthrough just started is opening its page, even before its first card', async () => {
+    const { flinders, shown, url } = app('/');
+    await vi.advanceTimersByTimeAsync(1000);
+    // The page is still loading (a spinner ticking), so the player waits for the element.
+    document.body.innerHTML = '<p id="spinner"></p>';
+    const loading = setInterval(() => document.getElementById('spinner')?.setAttribute('data-tick', String(Date.now())), 100);
+    void flinders.start('1');
+    // Its first page has opened, and the element is slow: well past the offer's delay, there is no card yet.
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(url()).toBe('/home');
+    expect(document.querySelector('.driver-popover')).toBeNull();
+    expect(shown).toEqual([]);
+    clearInterval(loading);
+    document.body.innerHTML = '<button data-testid="late">Late</button>';
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(document.querySelector('.driver-popover')).not.toBeNull();
+    expect(shown).toEqual([]);
+    (flinders.player as WalkthroughPlayer).stop();
+    flinders.destroy();
+  });
+
+  it('takes down an offer already up when a walkthrough starts, from the player as well', async () => {
+    const { flinders, shown, clear } = app('/home');
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(shown).toEqual(['Home']);
+    clear.mockClear();
+    void (flinders.player as WalkthroughPlayer).start({ id: 'w', version: 1, title: 'Home', steps: live.steps as never });
+    expect(clear).toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(5000);
+    (flinders.player as WalkthroughPlayer).stop();
+    flinders.destroy();
   });
 });

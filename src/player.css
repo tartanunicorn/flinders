@@ -70,6 +70,8 @@ html.flinders-held .driver-popover, html.flinders-held .flinders-leader { visibi
 .flinders-card .driver-popover-title[style*='block'] + .driver-popover-description { margin-top: var(--flinders-sp-2, 8px); }
 .flinders-card .driver-popover-description { margin: 0; line-height: 1.5; color: var(--flinders-text-secondary, #4b5563); }
 .flinders-card .driver-popover-description strong { color: var(--flinders-text, #1f2328); font-weight: 600; }
+.flinders-card .flinders-looking { margin: var(--flinders-sp-2, 8px) 0 0; font-size: var(--flinders-fs-meta, 12px); color: var(--flinders-text-muted, #6b7280); }
+.flinders-card[aria-busy="true"] .driver-popover-footer-btn:disabled { opacity: 0.5; cursor: progress; }
 
 /* ✕ Finish later, top right as in every pop-out. */
 .flinders-card .driver-popover-close-btn {

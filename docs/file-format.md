@@ -61,7 +61,7 @@ Here's a Guide me walkthrough using most of what's below:
 | `permission` | No | Who it's for, or null for everyone. `walkthroughToOffer` asks your `can()`. Any text, unless you pass your own list as `permissions`. |
 | `offer_on` | No | The route pattern where it's offered, or null for never. |
 | `format_version` | No | The file format. Left out, it's 1. A file newer than the package understands is refused with a plain message. |
-| `reoffer_from` | No | The version a person must have seen not to be offered it again. Starts at 1. Left out, a new version keeps the last one's, so changing a walkthrough stays quiet. To offer version 3 to everyone again, set it to 3. Finished, paused and Not now all count as seen. |
+| `reoffer_from` | No | The version a person must have seen not to be offered it again. Starts at 1. Left out, a new version keeps the last one's, so changing a walkthrough stays quiet. To offer version 3 to everyone again, set it to 3. Finished, paused and Not now all count as seen, unless the product passes `reofferUnfinished: true`: then only finished and Not now do. |
 | `status` | No | `draft`, `live` or `inactive`. Used only if the call to `saveFile` doesn't pass its own, and `draft` if neither says. Pass `status: 'draft'` on uploads, so nobody can go live by editing a file. |
 | `steps` | Yes | 1 to 30 steps. |
 
@@ -88,7 +88,7 @@ Do and Optional need something highlighted. In a Show me, `done_when` is ignored
 | `wait_for` | No | `appear`: wait while the page is loading, up to 4 seconds. This is also what happens if you leave it out. `person`: wait as long as it takes, for something only the person can bring up. |
 | `advance_on_click` | No | `true`: clicking the real element moves on, in both kinds, with Next hidden while the element is there. **Can't find it?** shows after `help_after`. On a Guide me step with `done_when`, that decides instead. `optional` turns it off. A step never clicks for the person. |
 | `done_when` | No | In `guide` mode, what finishes the step (below). Ignored in `show`. |
-| `help_after` | No | On a step with `done_when` or `advance_on_click`: seconds, 1 to 120, before the card offers **Can't find it?**, which moves on. 3 by default. |
+| `help_after` | No | On a step with `done_when` or `advance_on_click`: seconds, 1 to 120, before the card offers **Can't find it?**, which moves on. 3 by default. The product can turn it off, or have it explain first, with the player's `cantFind`. |
 | `optional` | No | `true`: what's highlighted can be used, and the person still presses Next. |
 | `only_if` | No | An element, or a list where any one will do. If none is on screen, the step is skipped, so one walkthrough can serve several paths. Neighbouring steps with `only_if` are a fork, of which one path plays; neighbouring steps with the same `only_if` are one path. |
 | `blocked` | No | Up to 5 things that stop the person doing this step (below). |

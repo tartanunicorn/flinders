@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { checklistFor, findWalkthrough, matchWalkthroughs, missingRouteParam, parseWalkthroughRef, resumeStep, walkthroughFirstRoute, walkthroughToOffer } from '../src/index.js';
+import { checklistFor, findWalkthrough, offerSeen, matchWalkthroughs, missingRouteParam, parseWalkthroughRef, resumeStep, walkthroughFirstRoute, walkthroughToOffer } from '../src/index.js';
 import type { ChecklistRow, Walkthrough, WalkthroughProgress } from '../src/index.js';
 
 const step = { anchor: null, title: 'Sign off', body: 'Body.', missing: 'centred' as const };
@@ -45,6 +45,25 @@ describe('walkthroughToOffer', () => {
 
   it('respects the permission', () => {
     expect(walkthroughToOffer([make(1, { permission: 'sign_off' })], '/reports', { progress: {}, can: () => false })).toBeNull();
+  });
+  it('reofferUnfinished: a walkthrough left part-way is offered again; Done and Not now still stop it', () => {
+    const row = (status: WalkthroughProgress['status'], v = 1): Record<string, WalkthroughProgress> => ({ 'id-1': { ...seen(v), status } });
+    const on = { reofferUnfinished: true };
+    expect(walkthroughToOffer([make(1)], '/reports', person(row('paused')))).toBeNull();
+    expect(walkthroughToOffer([make(1)], '/reports', person(row('started')))).toBeNull();
+    expect(walkthroughToOffer([make(1)], '/reports', person(row('paused')), on)?.number).toBe(1);
+    expect(walkthroughToOffer([make(1)], '/reports', person(row('started')), on)?.number).toBe(1);
+    expect(walkthroughToOffer([make(1)], '/reports', person(row('completed')), on)).toBeNull();
+    expect(walkthroughToOffer([make(1)], '/reports', person(row('dismissed')), on)).toBeNull();
+    // An older version's Done still counts for nothing once reoffer_from is raised.
+    expect(walkthroughToOffer([make(1, { reoffer_from: 3 })], '/reports', person(row('completed', 2)), on)?.number).toBe(1);
+    expect(offerSeen(make(1), undefined, on)).toBe(false);
+  });
+
+  it('reofferUnfinished changes nothing on the checklist: only Done ticks a row', () => {
+    const list = [make(1), make(2, { offer_on: '/files' })];
+    const progress: Record<string, WalkthroughProgress> = { 'id-1': { ...seen(3), status: 'paused' }, 'id-2': seen(3) };
+    expect(checklistFor(list, progress, () => true, '/home').map((r) => r.done)).toEqual([false, true]);
   });
 });
 

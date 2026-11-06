@@ -269,7 +269,26 @@ Inject `Walkthroughs` once in the app's root component so it exists from the fir
 
 **The recording bar** comes up by itself. To restyle it, pass `recording: { bar: { classes, unstyled, labels } }`; to draw your own, see [Recording](recording.md). If the person isn't signed in, your normal sign-in runs and needs no change: the link waits in the tab.
 
-**Your own buttons.** `flinders.start(handle, 'chat')` starts a walkthrough from a chat, a help menu or a home list.
+**Your own buttons.** `flinders.start(handle, 'chat')` starts a walkthrough from a chat, a help menu or a home list. From the moment it's called, offers wait, and any offer on screen goes, even while its first page is still opening.
+
+**Choices to make.** Each has a default that works; these are the ones the first rollouts changed.
+
+| Option | Where | Default | What it does |
+|---|---|---|---|
+| `reofferUnfinished: true` | `createFlinders` | off | Someone who left a walkthrough part-way (Finish later, Esc, another page) is offered it again on its page. Only Done and Not now stop it |
+| `cantFind` | `player` | `'skip'` | **Can't find it?** on a step the person has to do. `'skip'` moves on to the next step. `'help'` says what's missing (the step's `missing.body` when it has one) and offers a labelled **Skip this step**. `false` never shows it |
+| `lateElements: false` | `player` | on | A card drawn without its element (a list still loading) keeps looking and points at the element once it appears. False keeps it centred |
+| `lookingNote: false` | `player` | on | After Next or Back, while the next page or element is on its way, the card says "Looking for …" and its buttons wait, so a second press can't skip a step |
+| `lookAlike: true` | `player` | off | A numbered anchor (`row-3`) that isn't on the page falls back to a visible one with the same base name (`row-1`, `row`) |
+| `settle: true` | `player` | off | A new card waits, hidden, until its element has stopped moving (still for 300 ms, at most 3 s), for pages that lay out after they draw |
+
+```ts
+createFlinders({
+  // …the connectors above…
+  reofferUnfinished: true,
+  player: { cantFind: 'help', lookAlike: true },
+});
+```
 
 **Your chat (optional).** Someone part-way through a walkthrough can ask a question and carry on. Pass `player: { askAbout: () => yourChat.open() }`, mark the chat and its button `data-flinders-keep`, and call `flinders.hold(open)` when it opens and closes. `flinders.context()` gives your chat where they are, as plain JSON, including the articles the walkthrough names. Your chat does its own search. See [Chat and admin](chat-and-admin.md).
 

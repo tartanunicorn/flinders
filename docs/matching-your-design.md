@@ -71,7 +71,7 @@ Every word on screen can be changed, so you can use your own or translate them. 
 
 | Where | Option | Words |
 |---|---|---|
-| `player` | `labels` | `next`, `back`, `done`, `finishLater`, `learnMore`, `waiting`, `cantFind`, `progress(step, total)`, `announce(step, total, title)` |
+| `player` | `labels` | `next`, `back`, `done`, `finishLater`, `learnMore`, `waiting`, `cantFind`, `cantSee(title)`, `skipStep`, `looking(title)`, `progress(step, total)`, `announce(step, total, title)` |
 | `RecorderHost` | `labels` | `noAnchor`, the warning when a click lands on something with no `data-testid`; `full`, `noChoice`, `emptyPath`, `samePathStart`, `pathsOverlap` |
 | `recording.bar` | `labels` | `bar`, `ready`, `readyHint`, `start`, `cancel`, `recording`, `recordingHint`, `undo`, `finish`, `paths`, `pathHint`, `nextPath`, `paused`, `pausedHint`, `recordPath`, `endPaths`, `stopped`, `stoppedHint`, `stoppedEmptyHint`, `download`, `steps(count)`, `path(number)`, `recordingAs(name)` |
 | `createFlinders` | `labels` | `show`, `guide`, `offerMessage`, `notNow`, `offerHint`, `couldNotStart`, `linkExpired`, `linkNotAllowed`, `allowPopups`, `recordingRefused`, `recordingSaved`, `recordingNotSaved` |

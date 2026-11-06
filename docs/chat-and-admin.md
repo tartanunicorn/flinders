@@ -51,7 +51,7 @@ A page with a Show me and a Guide me offers Guide me first and Show me beside it
 
 A walkthrough belongs to the product (owner null) or one customer. `adminList`, `resolve`, `adminDetail` and `copyVersion` take the owner as their last argument, `saveFile` as `opts.owner`; left out, they work on the product's own. Numbers are per owner, so two customers can each have a walkthrough 1. `served` returns every owner's; narrow it with your row-level security.
 
-A walkthrough is offered until the person has seen `reoffer_from` or later. A new version stays quiet unless the file raises it.
+A walkthrough is offered until the person has seen `reoffer_from` or later. A new version stays quiet unless the file raises it. By default any row counts as seen, Finish later included. Pass `{ reofferUnfinished: true }` as the last argument to `walkthroughToOffer` (or `reofferUnfinished: true` to `createFlinders`), and only `completed` and `dismissed` stop an offer, so someone who left part-way is offered it again. `offerSeen(walkthrough, row, rules)` is the same test for one walkthrough.
 
 `copyVersion` won't make a version live while it holds a recording's placeholder words. It throws a `WalkthroughFileError` naming the steps, to show as it is.
 
