@@ -2,7 +2,7 @@
 
 Each version says what changed and what to do. Flinders follows [semantic versions](https://semver.org): before 1.0, a minor version can break things.
 
-## Unreleased
+## 0.1.3
 
 Fixes from the first product rollout. Every change of behaviour has an option that keeps the old one.
 
