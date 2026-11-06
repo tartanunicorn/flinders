@@ -79,15 +79,34 @@ export function matchWalkthroughs<T extends Pick<Walkthrough, 'walkthrough_id' |
     .map(({ walkthrough, here }) => ({ walkthrough, here }));
 }
 
+/** How offers treat what a person has already done with a walkthrough. */
+export interface OfferRules {
+  /**
+   * True: only Done and Not now stop an offer, so a walkthrough left part-way (Finish later, Esc,
+   * another page) is offered again. False (the default): any progress counts as seen.
+   */
+  reofferUnfinished?: boolean;
+}
+
+/**
+ * The person has seen this walkthrough, for offers: a row on or after its `reoffer_from` version.
+ * With `reofferUnfinished`, only a finished or dismissed row counts; started and paused don't.
+ */
+export function offerSeen(w: Pick<Walkthrough, 'reoffer_from'>, progress: WalkthroughProgress | undefined, rules: OfferRules = {}): boolean {
+  if (!progress || progress.v < w.reoffer_from) return false;
+  return !rules.reofferUnfinished || progress.status === 'completed' || progress.status === 'dismissed';
+}
+
 /**
  * The walkthrough to offer on this page, if any: one with a matching `offer_on`, that the person
  * may see and hasn't seen since its `reoffer_from` version. Finished, paused or Not now all count
- * as seen.
+ * as seen; with `reofferUnfinished`, only finished and Not now do.
  */
 export function walkthroughToOffer<T extends Pick<Walkthrough, 'walkthrough_id' | 'offer_on' | 'permission' | 'reoffer_from'>>(
   list: readonly T[],
   url: string,
   person: { progress: Readonly<Record<string, WalkthroughProgress>>; can: (permission: string) => boolean },
+  rules: OfferRules = {},
 ): T | null {
   return (
     list.find(
@@ -95,7 +114,7 @@ export function walkthroughToOffer<T extends Pick<Walkthrough, 'walkthrough_id' 
         !!w.offer_on &&
         !!matchRoute(w.offer_on, url) &&
         (!w.permission || person.can(w.permission)) &&
-        !((person.progress[w.walkthrough_id]?.v ?? 0) >= w.reoffer_from),
+        !offerSeen(w, person.progress[w.walkthrough_id], rules),
     ) ?? null
   );
 }
@@ -110,7 +129,8 @@ export interface ChecklistRow<T> {
 /**
  * A person's list of walkthroughs from this URL, one row per task, by number. A Show me and a
  * Guide me with the same `offer_on` are one task: one row, Guide me first, done once either was
- * finished on or after its `reoffer_from` version (Finish later and Not now aren't finished).
+ * finished on or after its `reoffer_from` version (Finish later and Not now aren't finished, so
+ * `reofferUnfinished` changes nothing here: a row is ticked only by Done).
  * Leaves out what the person may not see and what can't start here, because its first page needs
  * an id this URL doesn't give; both are still offered on their own pages, and asking still works.
  * Empty once nothing startable is left to do, so the list goes away.

@@ -1009,3 +1009,229 @@ describe('doneWhenMet', () => {
     expect(doneWhenMet({ kind: 'route', route: '/projects/:id' }, null, '/other')).toBe(false);
   });
 });
+
+describe('WalkthroughPlayer, fixes from the TabLogs rollout', () => {
+  let moves: [number, StepHow][];
+  let events: [PlayerEvent, number][];
+  let player: WalkthroughPlayer;
+  const make = (extra: Partial<PlayerHost> = {}) => new WalkthroughPlayer({ url: () => '/', navigate: async () => true, onNavigated: () => () => undefined, ...extra });
+  const tour = (mode: 'show' | 'guide', steps: PlayableWalkthrough['steps']): PlayableWalkthrough => ({ id: 'w1', version: 1, title: 'T', mode, steps });
+  const play = (t: PlayableWalkthrough) => player.start(t, { onStep: (s, how) => moves.push([s, how]), onEvent: (e, s) => events.push([e, s]) });
+  const buttons = () => [...card()!.querySelectorAll<HTMLButtonElement>('button')];
+  const button = (text: string) => buttons().find((b) => b.textContent === text);
+  const description = () => card()?.querySelector('.driver-popover-description')?.textContent;
+  const active = (name: string) => document.querySelector(`[data-testid="${name}"]`)!.classList.contains('driver-active-element');
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    moves = [];
+    events = [];
+  });
+  afterEach(() => {
+    player?.stop();
+    vi.useRealTimers();
+    document.body.innerHTML = '';
+  });
+
+  describe('"Can’t find it?"', () => {
+    it('cantFind: false never offers it: not after any wait, not on a switched-off control, not after the step is drawn again', async () => {
+      page('<button data-testid="one">One</button><button data-testid="off" disabled>Off</button>');
+      player = make({ cantFind: false });
+      void play(tour('guide', [step('one', 'First', { done_when: { kind: 'chosen' } })]));
+      await flush(30_000);
+      expect(title()).toBe('First');
+      expect(button('Can’t find it?')).toBeUndefined();
+      player.stop();
+
+      // A blocker coming and going draws the step again.
+      void play(tour('guide', [step('off', 'Off', { done_when: { kind: 'clicked' }, blocked: [{ anchor: 'stuck', body: 'Blocked.' }] })]));
+      await flush(1000);
+      document.body.insertAdjacentHTML('beforeend', '<p data-testid="stuck">Stuck</p>');
+      await flush(1000);
+      expect(description()).toBe('Blocked.');
+      document.querySelector('[data-testid="stuck"]')!.remove();
+      await flush(10_000);
+      expect(title()).toBe('Off');
+      expect(card()!.querySelector('[data-flinders-cant-find]')).toBeNull();
+    });
+
+    it('by default it still skips, and is on the card once', async () => {
+      page('<button data-testid="one">One</button><button data-testid="two">Two</button>');
+      player = make();
+      void play(tour('guide', [step('one', 'First', { done_when: { kind: 'chosen' } }), step('two', 'Second')]));
+      await flush(10_000);
+      expect(card()!.querySelectorAll('[data-flinders-cant-find]')).toHaveLength(1);
+      button('Can’t find it?')!.click();
+      await flush();
+      expect(title()).toBe('Second');
+      expect(moves).toEqual([[1, 'skipped']]);
+    });
+
+    it('cantFind: help says what’s missing, with the step’s own words, and skips only on Skip this step', async () => {
+      page('<button data-testid="one">One</button><button data-testid="two">Two</button>');
+      player = make({ cantFind: 'help' });
+      void play(tour('guide', [step('one', 'Pick a colour', { done_when: { kind: 'chosen' }, missing: { body: 'It’s under **Settings**.' } }), step('two', 'Second')]));
+      await flush(5000);
+      button('Can’t find it?')!.click();
+      await flush(100);
+      expect(title()).toBe('Pick a colour');
+      expect(description()).toBe('We can’t see “Pick a colour” on this page. It’s under Settings.');
+      expect(button('Can’t find it?')).toBeUndefined();
+      expect(moves).toEqual([]);
+      button('Skip this step')!.click();
+      await flush();
+      expect(title()).toBe('Second');
+      expect(moves).toEqual([[1, 'skipped']]);
+    });
+  });
+
+  describe('a card drawn without its element', () => {
+    const steps = [step('one', 'First'), step('late', 'Second'), step('three', 'Third')];
+
+    it('points at the element as soon as it appears', async () => {
+      page('<button data-testid="one">One</button><button data-testid="three">Three</button>');
+      player = make();
+      void play(tour('show', steps));
+      await flush();
+      nextButton()!.click();
+      await flush(5000);
+      expect(title()).toBe('Second');
+      expect(document.querySelector('[data-testid].driver-active-element')).toBeNull();
+      document.body.insertAdjacentHTML('beforeend', '<button data-testid="late">Late</button>');
+      await flush(1000);
+      expect(title()).toBe('Second');
+      expect(active('late')).toBe(true);
+      // Drawn again, it isn't a move: nothing more is recorded.
+      expect(moves).toEqual([[1, 'next']]);
+    });
+
+    it('stops looking once the run has moved on, and lateElements: false keeps the old way', async () => {
+      page('<button data-testid="one">One</button><button data-testid="three">Three</button>');
+      player = make();
+      void play(tour('show', steps));
+      await flush();
+      nextButton()!.click();
+      await flush(5000);
+      nextButton()!.click();
+      await flush(1000);
+      expect(title()).toBe('Third');
+      document.body.insertAdjacentHTML('beforeend', '<button data-testid="late">Late</button>');
+      await flush(1000);
+      expect(title()).toBe('Third');
+      player.stop();
+
+      page('<button data-testid="one">One</button><button data-testid="three">Three</button>');
+      player = make({ lateElements: false });
+      void play(tour('show', steps));
+      await flush();
+      nextButton()!.click();
+      await flush(5000);
+      document.body.insertAdjacentHTML('beforeend', '<button data-testid="late">Late</button>');
+      await flush(1000);
+      expect(title()).toBe('Second');
+      expect(active('late')).toBe(false);
+    });
+
+    it('says "Looking for …" while it waits, and a second Next can’t skip the step', async () => {
+      page('<button data-testid="one">One</button><button data-testid="three">Three</button>');
+      player = make();
+      void play(tour('show', steps));
+      await flush();
+      nextButton()!.click();
+      await flush(50);
+      expect(title()).toBe('First');
+      expect(card()!.querySelector('[data-flinders-looking]')?.textContent).toBe('Looking for “Second”…');
+      expect(nextButton()).toHaveProperty('disabled', true);
+      expect(prevButton()).toHaveProperty('disabled', true);
+      nextButton()!.click();
+      player.next(); // a product's own card: its Next goes to the same place, never past it
+      await flush(5000);
+      expect(title()).toBe('Second');
+      expect(card()!.querySelector('[data-flinders-looking]')).toBeNull();
+    });
+
+    it('no note when nothing is waited for, or with lookingNote: false', async () => {
+      page('<button data-testid="one">One</button><button data-testid="two">Two</button>');
+      player = make();
+      void play(tour('show', [step('one', 'First'), step('two', 'Second'), step('late', 'Third')]));
+      await flush();
+      nextButton()!.click();
+      expect(card()!.querySelector('[data-flinders-looking]')).toBeNull();
+      await flush();
+      player.stop();
+
+      player = make({ lookingNote: false });
+      void play(tour('show', [step('one', 'First'), step('late', 'Second')]));
+      await flush();
+      nextButton()!.click();
+      await flush(50);
+      expect(card()!.querySelector('[data-flinders-looking]')).toBeNull();
+      expect(nextButton()).toHaveProperty('disabled', false);
+    });
+  });
+
+  it('lookAlike: a numbered anchor that isn’t there falls back to one with the same base name', async () => {
+    page('<button data-testid="row-1">Row 1</button>');
+    player = make();
+    void play(tour('show', [step('row-3', 'A row')]));
+    await flush(5000);
+    expect(active('row-1')).toBe(false);
+    player.stop();
+
+    player = make({ lookAlike: true });
+    void play(tour('show', [step('row-3', 'A row')]));
+    await flush(5000);
+    expect(active('row-1')).toBe(true);
+  });
+
+  it('settle: a new card waits, hidden, until its element stops moving, at most 3 s', async () => {
+    page('<button data-testid="one">One</button>');
+    const original = Element.prototype.getBoundingClientRect;
+    const start = Date.now();
+    let movingFor = 1000;
+    Element.prototype.getBoundingClientRect = function () {
+      const top = Date.now() - start < movingFor ? (Date.now() - start) % 97 : 10;
+      return { width: 100, height: 30, top, left: 10, right: 110, bottom: top + 30, x: 10, y: top, toJSON: () => ({}) } as DOMRect;
+    };
+    try {
+      player = make({ settle: true });
+      void play(tour('show', [step('one', 'First')]));
+      await flush(800);
+      expect(card()).toBeNull();
+      await flush(800);
+      expect(title()).toBe('First');
+      player.stop();
+
+      movingFor = Infinity;
+      void play(tour('show', [step('one', 'First')]));
+      await flush(2500);
+      expect(card()).toBeNull();
+      await flush(800);
+      expect(title()).toBe('First');
+    } finally {
+      Element.prototype.getBoundingClientRect = original;
+    }
+  });
+
+  it('is busy from the moment start() is called, and says so before the first page opens', async () => {
+    page('<button data-testid="one">One</button>');
+    const started: string[] = [];
+    let opened: (ok: boolean) => void = () => undefined;
+    player = make({ navigate: () => new Promise((resolve) => (opened = resolve)), onStart: (w) => started.push(w.id) });
+    expect(player.busy).toBe(false);
+    const done = play(tour('show', [{ ...step('one', 'First'), route: '/elsewhere' }]));
+    expect(player.busy).toBe(true);
+    expect(started).toEqual(['w1']);
+    await flush(1000);
+    expect(card()).toBeNull();
+    expect(player.busy).toBe(true);
+    opened(false);
+    expect(await done).toBe(false);
+    expect(player.busy).toBe(false);
+
+    // A card on the spot isn't a walkthrough starting.
+    void player.showMe('one');
+    await flush(1000);
+    expect(started).toEqual(['w1']);
+  });
+});

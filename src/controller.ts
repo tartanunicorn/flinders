@@ -1,4 +1,4 @@
-import { checklistFor, findWalkthrough, matchWalkthroughs, modeLabel, resumeStep, walkthroughToOffer } from './logic.js';
+import { checklistFor, findWalkthrough, matchWalkthroughs, modeLabel, offerSeen, resumeStep, walkthroughToOffer } from './logic.js';
 import type { PlayableWalkthrough, PlayerEvent, PlayerStartOptions } from './player.js';
 import { matchRoute } from './routes.js';
 import type { StepHow, Walkthrough, WalkthroughFrom, WalkthroughLabels, WalkthroughProgress } from './types.js';
@@ -68,6 +68,8 @@ export interface WalkthroughHost<W extends ServedWalkthrough> {
   onChange?(view: WalkthroughsView<W>): void;
   /** The controller's words, each with a default. */
   labels?: Partial<WalkthroughLabels>;
+  /** True: a walkthrough left part-way is offered again; only Done and Not now stop it. See `offerSeen`. */
+  reofferUnfinished?: boolean;
 }
 
 /** What a product draws from. */
@@ -105,6 +107,8 @@ export class WalkthroughController<W extends ServedWalkthrough> {
   private offering = false;
   /** A preview waiting for the person to open its page. */
   private pendingPreview: PlayableWalkthrough | null = null;
+  /** Starts under way: a walkthrough counts as playing from `start()`, not from its first card. */
+  private starting = 0;
 
   constructor(private readonly host: WalkthroughHost<W>) {
     this.labels = { ...WALKTHROUGH_LABELS, ...host.labels };
@@ -187,6 +191,17 @@ export class WalkthroughController<W extends ServedWalkthrough> {
    * (it says so).
    */
   async start(ref: string, from: WalkthroughFrom, opts: { fromStart?: boolean; startParams?: Record<string, string> } = {}): Promise<boolean> {
+    // Playing from now: its first page may take a while to open, and no offer goes up beside it.
+    this.starting++;
+    this.host.clearOffer();
+    try {
+      return await this.startNow(ref, from, opts);
+    } finally {
+      this.starting--;
+    }
+  }
+
+  private async startNow(ref: string, from: WalkthroughFrom, opts: { fromStart?: boolean; startParams?: Record<string, string> }): Promise<boolean> {
     // Not loaded yet, or the last load failed (the API was briefly away): load again, so a failed
     // load never leaves Show me doing nothing for the rest of the visit.
     if (this.state !== 'loaded') await this.load();
@@ -249,12 +264,12 @@ export class WalkthroughController<W extends ServedWalkthrough> {
   async offerFor(url: string): Promise<void> {
     const page = ++this.offerPage;
     if (await this.startPendingPreview(url)) return;
-    if (this.offering || this.host.offersPaused()) return;
+    if (this.offering || this.paused()) return;
     if (this.state === 'idle' || this.state === 'loading') await this.load();
-    // They moved on while it loaded: only the page they're on now gets an offer.
-    if (page !== this.offerPage) return;
+    // They moved on while it loaded, or started something: only the page they're on now gets an offer, and only when nothing is playing.
+    if (page !== this.offerPage || this.offering || this.paused()) return;
     if (!(this.mine?.offer_walkthroughs ?? true)) return;
-    const w = walkthroughToOffer(this.list, url, { progress: this.mine?.progress ?? {}, can: (permission) => this.host.can(permission) });
+    const w = walkthroughToOffer(this.list, url, { progress: this.mine?.progress ?? {}, can: (permission) => this.host.can(permission) }, { reofferUnfinished: this.host.reofferUnfinished });
     if (!w) return;
     // The same page's other kind goes beside it, if it hasn't been seen either: Guide me is the main button, as people here came to work.
     const other = this.list.find((x) => x.walkthrough_id !== w.walkthrough_id && x.offer_on === w.offer_on && x.mode !== w.mode && this.unseen(x) && (!x.permission || this.host.can(x.permission)));
@@ -283,9 +298,17 @@ export class WalkthroughController<W extends ServedWalkthrough> {
     if (rest && this.unseen(rest)) await this.record(rest, 'dismissed', 0, 'offer');
   }
 
-  /** No progress at or past the version the person must have seen: there is nothing of theirs to overwrite. */
+  /**
+   * Not seen, for offers (`offerSeen`): no progress at or past the version the person must have seen,
+   * or with `reofferUnfinished`, none that finished or said Not now.
+   */
   private unseen(w: W): boolean {
-    return (this.mine?.progress[w.walkthrough_id]?.v ?? 0) < w.reoffer_from;
+    return !offerSeen(w, this.mine?.progress[w.walkthrough_id], { reofferUnfinished: this.host.reofferUnfinished });
+  }
+
+  /** Offers wait while the product says so, and while a walkthrough is starting. */
+  private paused(): boolean {
+    return this.starting > 0 || this.host.offersPaused();
   }
 
   /** Takes this page's offer down unanswered (the person moved to another page). */

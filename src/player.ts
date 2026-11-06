@@ -38,6 +38,28 @@ export interface PlayerHost {
   anchorAttribute?: string;
   /** The switch to the phone layout; COMPACT_QUERY by default. */
   compactQuery?: string;
+  /**
+   * Called as a walkthrough starts, before its first page opens or its first card is drawn (not for
+   * `showMe` and `confirm` cards). `createFlinders` uses it to take down an offer it has overtaken.
+   */
+  onStart?(walkthrough: PlayableWalkthrough): void;
+  /**
+   * "Can't find it?" on a step the person has to do. `'skip'` (the default): the link skips the step.
+   * `'help'`: it says what's missing (the step's `missing.body` when it has one) and offers a
+   * labelled Skip this step. `false`: never shown.
+   */
+  cantFind?: false | 'skip' | 'help';
+  /**
+   * On (the default): a card drawn without its element (a list still loading) keeps looking, and
+   * points at the element as soon as it appears. False: it stays as drawn.
+   */
+  lateElements?: boolean;
+  /** On (the default): after Next or Back, while the next step's page or element is on its way, the card says "Looking for …" and its buttons wait. */
+  lookingNote?: boolean;
+  /** A numbered anchor (`row-3`) that isn't on the page falls back to a visible one with the same base name (`row-1`, `row`). Off by default. */
+  lookAlike?: boolean;
+  /** A new card waits, hidden, until its element has stopped moving (the page is still laying out): still for 300 ms, at most 3 s. Off by default. */
+  settle?: boolean;
 }
 
 export interface PlayerLabels {
@@ -49,6 +71,12 @@ export interface PlayerLabels {
   askAbout: string;
   waiting: string;
   cantFind: string;
+  /** "Can't find it?" in `'help'` mode: what the card says instead of the step's words. */
+  cantSee(title: string): string;
+  /** The button that skips a step, in `'help'` mode. */
+  skipStep: string;
+  /** On the card while the next step's page or element is on its way. */
+  looking(title: string): string;
   /** Added to the words of an optional step. */
   optional: string;
   /** "2 of 5" on the card. */
@@ -104,7 +132,7 @@ export interface PlayerMarkers {
 
 const MARKERS: PlayerMarkers = { bar: '[data-flinders-bar]', barHeader: '[data-flinders-bar="header"]', barActions: '[data-flinders-bar="actions"]', bottomBar: '[data-flinders-bottom-bar]' };
 
-const LABELS: PlayerLabels = { next: 'Next', back: 'Back', done: 'Done', finishLater: 'Finish later', learnMore: 'Learn more', askAbout: 'Ask about this', waiting: 'Waiting…', cantFind: 'Can’t find it?', optional: 'You can try it, then press Next.', progress: (step, total) => `${step} of ${total}`, announce: (step, total, title) => `Step ${step} of ${total}: ${title}` };
+const LABELS: PlayerLabels = { next: 'Next', back: 'Back', done: 'Done', finishLater: 'Finish later', learnMore: 'Learn more', askAbout: 'Ask about this', waiting: 'Waiting…', cantFind: 'Can’t find it?', cantSee: (title) => `We can’t see “${title}” on this page.`, skipStep: 'Skip this step', looking: (title) => `Looking for “${title}”…`, optional: 'You can try it, then press Next.', progress: (step, total) => `${step} of ${total}`, announce: (step, total, title) => `Step ${step} of ${total}: ${title}` };
 
 export interface PlayableWalkthrough {
   /** The walkthrough's original id (the same for every version). */
@@ -163,6 +191,12 @@ const HELP_AFTER_SECONDS = 3;
 const CLICKED: DoneWhen = { kind: 'clicked' };
 /** How often a guide step looks to see whether it's done. */
 const DONE_POLL_MS = 200;
+/** How often a card drawn without its element looks again, besides watching the page change. */
+const LATE_POLL_MS = 250;
+/** `settle`: an element still for this long has finished moving. */
+const STILL_MS = 300;
+/** `settle`: the longest a new card waits for its element to stop moving. */
+const STILL_MAX_MS = 3000;
 /** The narrowest a card docked beside a pop-out may get before it goes above, below or inside instead. */
 const MIN_DOCKED_WIDTH = 240;
 /** Between a docked card and the pop-out or element it clears. */
@@ -242,6 +276,10 @@ interface Run {
   popover: PopoverDOM | null;
   /** "Can't find it?" is due on this step; the card adds it as soon as it's drawn. */
   wayOn: boolean;
+  /** "Can't find it?" was pressed in `'help'` mode: the card says what's missing, and redraws keep it. */
+  helping: boolean;
+  /** A move is under way (after Next or Back): the card on screen says so, and its buttons wait. */
+  looking: boolean;
   /** The element the current step highlights, if any (focus goes back to it at the end). */
   element: HTMLElement | null;
   /** The pop-out the highlighted element sits in, if any: the card docks beside it (fix 8). */
@@ -277,6 +315,8 @@ export class WalkthroughPlayer {
   private attempt = 0;
   private readonly labels: PlayerLabels;
   private readonly markers: PlayerMarkers;
+  /** Starts still loading Driver.js, before there is a run. */
+  private opening = 0;
 
   constructor(private readonly host: PlayerHost) {
     this.labels = { ...LABELS, ...host.labels };
@@ -291,6 +331,24 @@ export class WalkthroughPlayer {
    */
   async start(walkthrough: PlayableWalkthrough, opts: PlayerStartOptions = {}): Promise<boolean> {
     if (this.run) this.end('paused');
+    if (!walkthrough.spot) this.host.onStart?.(walkthrough);
+    this.opening++;
+    try {
+      return await this.begin(walkthrough, opts);
+    } finally {
+      this.opening--;
+    }
+  }
+
+  /**
+   * A walkthrough is starting or on screen: from the moment `start()` is called, not only once its
+   * first card is drawn (its first page may take a while to open). Offers wait for this.
+   */
+  get busy(): boolean {
+    return !!this.run || this.opening > 0;
+  }
+
+  private async begin(walkthrough: PlayableWalkthrough, opts: PlayerStartOptions): Promise<boolean> {
     const attempt = ++this.attempt;
     if (!walkthrough.steps.length) return false;
     let driver: typeof import('driver.js').driver;
@@ -348,6 +406,8 @@ export class WalkthroughPlayer {
       acting: false,
       popover: null,
       wayOn: false,
+      helping: false,
+      looking: false,
       element: null,
       panel: null,
       live,
@@ -496,6 +556,10 @@ export class WalkthroughPlayer {
       return;
     }
 
+    // Something to wait for (another page, an element not there yet): the card on screen says so, and its buttons wait.
+    const anchors = step.anchor ? [step.anchor, ...(step.blocked ?? []).map((b) => b.anchor)] : [];
+    if ((step.route && !matchRoute(step.route, this.host.url())) || (anchors.length && !anchors.some((a) => findElement(a, this.host.anchorAttribute)))) this.lookFor(run, step.title);
+
     if (!(await this.toRoute(run, step.route))) {
       if (this.run === run && run.token === token) this.end('paused');
       return;
@@ -528,9 +592,11 @@ export class WalkthroughPlayer {
       // visible wait: once the page settles without the element, the step falls back at once.
       const slow = step.wait_for === 'person' ? setTimeout(() => this.waiting(run, true), 300) : undefined;
       // A blocker showing ends the wait too: the person may never be able to do what's waited for.
-      element = await waitForElement([step.anchor, ...(step.blocked ?? []).map((b) => b.anchor)], wait, () => run.token !== token, this.host.anchorAttribute);
+      element = await waitForElement(anchors, wait, () => run.token !== token, this.host.anchorAttribute);
       clearTimeout(slow);
       if (run.token !== token) return;
+      // A numbered duplicate (`row-3`) that isn't here: one with the same base name that is.
+      if (!element && this.host.lookAlike) element = findLookAlike(step.anchor, this.host.anchorAttribute);
       const fallback = !element && typeof step.missing === 'object' ? step.missing : null;
       if (fallback?.alt) {
         element = await waitForElement(fallback.alt, APPEAR_WAIT_MS, () => run.token !== token, this.host.anchorAttribute);
@@ -550,6 +616,14 @@ export class WalkthroughPlayer {
       if (fallback && (element || !fallback.alt)) body = fallback.body ?? body;
     }
 
+    if (element && this.host.settle) {
+      // The page is still laying out: the card waits, hidden, until its element stops moving.
+      run.popover?.wrapper.style.setProperty('visibility', 'hidden');
+      run.looking = true;
+      await untilStill(element, () => run.token !== token);
+      if (run.token !== token) return;
+    }
+
     run.resuming = false;
     if (run.how === 'back') for (const at of run.done) if (at >= index) run.done.delete(at);
     // Back before a fork can change the choice, so it may be another path this time.
@@ -567,6 +641,8 @@ export class WalkthroughPlayer {
     this.host.onActive?.({ id: run.walkthrough.id, title: run.walkthrough.title, step: index, total: run.walkthrough.steps.length });
     this.show(run, shown, element, words, index, direction < 0);
     if (step.blocked?.length) this.watchBlocked(run, step, blocked, index, direction);
+    // Drawn without its element (still loading): keep looking, and point at it once it's there.
+    if (step.anchor && !element && this.host.lateElements !== false) this.watchLate(run, step, index, direction);
     const place = this.placeOf(run, index);
     run.live.textContent = run.walkthrough.spot ? `${step.title} ${words}`.trim() : this.labels.announce(place.step, place.total, step.title);
     if (run.how) run.opts.onStep?.(index, run.how);
@@ -612,6 +688,49 @@ export class WalkthroughPlayer {
     run.stepCleanup.push(() => clearInterval(poll));
   }
 
+  /** A card drawn without its element: once the element (or its alternate) appears, the step is shown again, pointing at it. Stops when the run moves on. */
+  private watchLate(run: Run, step: WalkthroughStep, index: number, direction: 1 | -1): void {
+    const attribute = this.host.anchorAttribute;
+    const alt = typeof step.missing === 'object' ? step.missing.alt : undefined;
+    const found = () => !!findElement(step.anchor!, attribute) || (!!alt && !!findElement(alt, attribute)) || (!!this.host.lookAlike && !!findLookAlike(step.anchor!, attribute));
+    const stop = () => {
+      observer.disconnect();
+      clearInterval(poll);
+    };
+    const check = () => {
+      if (this.run !== run || run.index !== index) return stop();
+      if (!found()) return;
+      stop();
+      void this.go(index, direction, true);
+    };
+    const observer = new MutationObserver(check);
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+    // Layout can change without a DOM mutation (a panel sliding in).
+    const poll = setInterval(check, LATE_POLL_MS);
+    run.stepCleanup.push(stop);
+  }
+
+  /** The card on screen while the next step's page or element is on its way: says so, and its buttons wait so a second press can't skip a step. */
+  private lookFor(run: Run, title: string): void {
+    const popover = run.popover;
+    if (this.host.lookingNote === false || !popover?.wrapper.isConnected) return;
+    run.looking = true;
+    for (const button of Array.from(popover.wrapper.querySelectorAll<HTMLButtonElement>('button'))) if (button !== popover.closeButton) button.disabled = true;
+    let note = popover.wrapper.querySelector<HTMLElement>('[data-flinders-looking]');
+    if (!note) {
+      note = document.createElement('p');
+      note.className = 'flinders-looking';
+      note.setAttribute('data-flinders-looking', '');
+      note.setAttribute('role', 'status');
+      popover.description.after(note);
+    }
+    note.textContent = this.labels.looking(title);
+    popover.wrapper.setAttribute('aria-busy', 'true');
+    requestAnimationFrame(() => {
+      if (this.run === run) run.driver.refresh();
+    });
+  }
+
   /** Is there a step before this one for Back to land on? A step on another page can't be seen from here, so it counts. */
   private canGoBack(run: Run, index: number): boolean {
     const url = this.host.url();
@@ -646,6 +765,8 @@ export class WalkthroughPlayer {
     // The new card comes after the old one has moved: until then there is no footer to add to.
     run.popover = null;
     run.wayOn = false;
+    run.helping = false;
+    run.looking = false;
     run.panel = element?.closest<HTMLElement>('[role="dialog"][aria-modal="true"]:not(.driver-popover)') ?? null;
     document.documentElement.classList.toggle('flinders-in-dialog', !!run.panel);
     if (element) this.followSize(run, element);
@@ -663,8 +784,9 @@ export class WalkthroughPlayer {
         prevBtnText: escapeHtml(spot?.back ?? this.labels.back),
         showProgress: !spot,
         progressText: this.labels.progress(place.step, place.total),
-        onNextClick: () => this.next(),
-        onPrevClick: () => this.back(),
+        // While the next step is on its way, a second press waits too (a product's own card has no disabled buttons).
+        onNextClick: () => run.looking || this.next(),
+        onPrevClick: () => run.looking || this.back(),
         onCloseClick: () => this.stop('paused'),
         onPopoverRender: (popover) => {
           this.decorate(run, popover, last, guided, guided || !!step.optional || !!step.advance_on_click || (!!spot && !!element));
@@ -712,8 +834,8 @@ export class WalkthroughPlayer {
       ...(spot?.back ? { backLabel: spot.back } : {}),
       ...(card.last && run.walkthrough.learnMore ? { learnMore: () => this.learnMore(run, !card.showNext), learnMoreLabel: this.labels.learnMore } : {}),
       ...(this.host.askAbout && !spot ? { askAbout: () => this.askAbout(run), askAboutLabel: this.labels.askAbout } : {}),
-      next: () => this.next(),
-      back: () => this.back(),
+      next: () => run.looking || this.next(),
+      back: () => run.looking || this.back(),
       finishLater: () => this.stop('paused'),
     });
     if (clear) run.stepCleanup.push(clear);
@@ -746,25 +868,66 @@ export class WalkthroughPlayer {
       }, DONE_POLL_MS);
       run.stepCleanup.push(() => clearInterval(poll));
     }
+    if (this.host.cantFind === false) return;
     // Switched off, it can't be done yet: the way on is offered at once rather than after a wait.
     const offNow = element?.matches(':disabled, [aria-disabled="true"]');
     const offer = setTimeout(() => this.offerWayOn(run), offNow ? 0 : helpAfter * 1000);
     run.stepCleanup.push(() => clearTimeout(offer));
   }
 
-  /** A Do step isn't a trap: after a while the card offers a way past it. */
+  /**
+   * A Do step isn't a trap: after a while the card offers a way past it, once (a redraw adds it
+   * again, and only then). `cantFind: false` never offers it; `'help'` says what's missing first.
+   */
   private offerWayOn(run: Run): void {
-    if (this.run !== run) return;
+    const mode = this.host.cantFind ?? 'skip';
+    if (this.run !== run || mode === false) return;
     run.wayOn = true;
     const footer = run.popover?.footerButtons;
     if (!footer?.isConnected) return;
-    const skip = document.createElement('button');
-    skip.type = 'button';
-    skip.className = ['driver-popover-footer-btn flinders-link', this.host.classes?.link ?? ''].join(' ').trim();
-    skip.textContent = this.labels.cantFind;
-    skip.addEventListener('click', () => this.next('skipped'));
-    footer.prepend(skip);
-    // The card has just grown, maybe by a row of its own: placed for its old size, it can cover the element.
+    if (run.helping) return this.drawHelp(run);
+    if (footer.querySelector('[data-flinders-cant-find]')) return;
+    const link = this.footerButton(this.labels.cantFind, 'link', () => (mode === 'help' ? this.helpFind(run) : this.next('skipped')));
+    link.setAttribute('data-flinders-cant-find', '');
+    footer.prepend(link);
+    this.refitSoon(run);
+  }
+
+  /** "Can't find it?" in `'help'` mode: the card says what's missing, with a clearly labelled Skip this step. */
+  private helpFind(run: Run): void {
+    if (this.run !== run) return;
+    run.helping = true;
+    this.drawHelp(run);
+    run.live.textContent = run.popover?.description.textContent ?? '';
+  }
+
+  private drawHelp(run: Run): void {
+    const popover = run.popover;
+    if (!popover?.wrapper.isConnected) return;
+    const raw = run.walkthrough.steps[run.index];
+    const missing = raw && typeof raw.missing === 'object' ? raw.missing.body : undefined;
+    popover.wrapper.querySelector('[data-flinders-cant-find]')?.remove();
+    popover.description.innerHTML = markup([this.labels.cantSee(run.shown.title), missing].filter(Boolean).join(' '));
+    popover.description.style.display = 'block';
+    if (!popover.footerButtons.querySelector('[data-flinders-skip]')) {
+      const skip = this.footerButton(this.labels.skipStep, 'secondary', () => this.next('skipped'));
+      skip.setAttribute('data-flinders-skip', '');
+      popover.footerButtons.prepend(skip);
+    }
+    this.refitSoon(run);
+  }
+
+  private footerButton(text: string, kind: 'link' | 'secondary', onClick: () => void): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = ['driver-popover-footer-btn', `flinders-${kind}`, (kind === 'link' ? this.host.classes?.link : this.host.classes?.secondary) ?? ''].join(' ').trim();
+    button.textContent = text;
+    button.addEventListener('click', onClick);
+    return button;
+  }
+
+  /** The card has just grown, maybe by a row of its own: placed for its old size, it can cover the element. */
+  private refitSoon(run: Run): void {
     requestAnimationFrame(() => {
       if (this.run !== run) return;
       run.driver.refresh();
@@ -1096,6 +1259,47 @@ function findElement(anchor: string, attribute = 'data-testid'): HTMLElement | n
     if (box.width > 0 && box.height > 0) return el;
   }
   return null;
+}
+
+/**
+ * A visible element that looks like a numbered anchor's duplicate: for `row-3`, `row` or `row-<n>`.
+ * Null when the anchor isn't numbered, or there is none.
+ * @internal
+ */
+export function findLookAlike(anchor: string, attribute = 'data-testid'): HTMLElement | null {
+  const base = /^(.+)-\d+$/.exec(anchor)?.[1];
+  if (!base) return null;
+  for (const el of Array.from(document.querySelectorAll<HTMLElement>(`[${attribute}]`))) {
+    const name = el.getAttribute(attribute) ?? '';
+    if (name === anchor || (name !== base && !(name.startsWith(`${base}-`) && /^\d+$/.test(name.slice(base.length + 1))))) continue;
+    const box = el.getBoundingClientRect();
+    if (box.width > 0 && box.height > 0) return el;
+  }
+  return null;
+}
+
+/** Resolves once the element has kept still for STILL_MS (or at STILL_MAX_MS, or when cancelled). */
+function untilStill(element: HTMLElement, cancelled: () => boolean): Promise<void> {
+  const where = () => {
+    const box = element.getBoundingClientRect();
+    return `${box.left},${box.top},${box.width},${box.height}`;
+  };
+  return new Promise((resolve) => {
+    const began = Date.now();
+    let last = where();
+    let since = began;
+    const poll = setInterval(() => {
+      const now = where();
+      if (now !== last) {
+        last = now;
+        since = Date.now();
+      }
+      if (cancelled() || !element.isConnected || Date.now() - since >= STILL_MS || Date.now() - began >= STILL_MAX_MS) {
+        clearInterval(poll);
+        resolve();
+      }
+    }, 50);
+  });
 }
 
 /**

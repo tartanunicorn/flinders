@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { WalkthroughController, WALKTHROUGH_LABELS, type OfferAnswer, type PersonWalkthroughs, type ServedWalkthrough, type WalkthroughOffer } from '../src/index.js';
+import { WalkthroughController, WALKTHROUGH_LABELS, type OfferAnswer, type PersonWalkthroughs, type ServedWalkthrough, type WalkthroughOffer, type WalkthroughProgress } from '../src/index.js';
 
 const STEPS = [{ anchor: null, title: 'Start', body: 'Every note starts here.', missing: 'centred' as const }];
 const tick = () => new Promise((r) => setTimeout(r));
@@ -21,7 +21,7 @@ const show = (over: Partial<ServedWalkthrough> = {}): ServedWalkthrough => ({
 });
 const guide = (over: Partial<ServedWalkthrough> = {}) => show({ walkthrough_id: '0192f3a1-0000-7000-8000-000000000002', number: 5, slug: 'guide', title: 'Guide', mode: 'guide', ...over });
 
-function setup(opts: { list?: ServedWalkthrough[]; progress?: PersonWalkthroughs['progress']; progressAfter?: PersonWalkthroughs['progress']; started?: boolean; can?: boolean; paused?: boolean; offers?: boolean; learnMore?: (slug: string) => void } = {}) {
+function setup(opts: { list?: ServedWalkthrough[]; progress?: PersonWalkthroughs['progress']; progressAfter?: PersonWalkthroughs['progress']; started?: boolean; can?: boolean; paused?: boolean; offers?: boolean; learnMore?: (slug: string) => void; reofferUnfinished?: boolean } = {}) {
   const mine = { offer_walkthroughs: opts.offers ?? true, progress: opts.progress ?? {} };
   const offered: { offer: WalkthroughOffer; answer: (a: OfferAnswer) => void }[] = [];
   const events: [string, string, string | undefined][] = [];
@@ -48,6 +48,7 @@ function setup(opts: { list?: ServedWalkthrough[]; progress?: PersonWalkthroughs
     toast,
     offersPaused: () => opts.paused ?? false,
     learnMore: opts.learnMore,
+    reofferUnfinished: opts.reofferUnfinished,
   });
   const dismissed = () => events.filter((e) => e[1] === 'dismissed').map((e) => e[0]);
   return { controller, offered, events, play, toast, clearOffer, list, dismissed };
@@ -181,13 +182,19 @@ describe('offers', () => {
 
   it('a walkthrough starting from elsewhere takes the offer down, and offers aren’t stuck after', async () => {
     const s = setup();
-    s.play.mockReturnValue(new Promise(() => undefined));
+    let opened: (ok: boolean) => void = () => undefined;
+    s.play.mockReturnValue(new Promise<boolean>((resolve) => (opened = resolve)));
     const pending = s.controller.offerFor('/notes');
     await tick();
-    void s.controller.start('1', 'chat');
+    const started = s.controller.start('1', 'chat');
     await tick();
     await pending;
     expect(s.offered).toEqual([]);
+    // Still opening its first page: no offer beside it.
+    await s.controller.offerFor('/notes');
+    expect(s.offered).toEqual([]);
+    opened(true);
+    await started;
     void s.controller.offerFor('/notes');
     await tick();
     expect(s.offered).toHaveLength(1);
@@ -317,5 +324,37 @@ describe('words', () => {
     });
     await controller.offerFor('/notes');
     expect(s.offered[0]!.offer).toMatchObject({ acceptLabel: 'Watch', message: 'Have a look.', dismissHint: 'Ask any time.' });
+  });
+});
+
+describe('reofferUnfinished', () => {
+  const row = (status: WalkthroughProgress['status']): WalkthroughProgress => ({ v: 2, status, step: 1, at: '2026-11-01T00:00:00Z' });
+
+  it('offers a walkthrough left part-way again, with its other kind beside it; Done and Not now still stop it', async () => {
+    const list = [show(), guide()];
+    const paused = { [show().walkthrough_id]: row('paused'), [guide().walkthrough_id]: row('started') };
+    const off = setup({ list, progress: paused });
+    await off.controller.offerFor('/notes');
+    expect(off.offered).toEqual([]);
+
+    const on = setup({ list, progress: paused, reofferUnfinished: true });
+    void on.controller.offerFor('/notes');
+    await tick();
+    await tick();
+    expect(on.offered.map((o) => [o.offer.acceptLabel, o.offer.alternativeLabel])).toEqual([['Guide me', 'Show me']]);
+
+    for (const status of ['completed', 'dismissed'] as const) {
+      const s = setup({ list, progress: { [show().walkthrough_id]: row(status), [guide().walkthrough_id]: row(status) }, reofferUnfinished: true });
+      await s.controller.offerFor('/notes');
+      expect(s.offered).toEqual([]);
+    }
+  });
+
+  it('only a kind not yet done or dismissed goes beside the main one', async () => {
+    const s = setup({ list: [show(), guide()], progress: { [guide().walkthrough_id]: row('completed'), [show().walkthrough_id]: row('paused') }, reofferUnfinished: true });
+    void s.controller.offerFor('/notes');
+    await tick();
+    await tick();
+    expect(s.offered.map((o) => [o.offer.title, o.offer.alternativeLabel])).toEqual([['Show', undefined]]);
   });
 });

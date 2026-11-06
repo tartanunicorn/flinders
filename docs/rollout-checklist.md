@@ -32,6 +32,7 @@ Install Flinders in this product: follow packages/flinders/docs/install.md from 
 - Allow pop-ups, once, in each browser that records.
 - Record, write the words, choose the page and make it live.
 - Mark new elements with `data-testid` as screens are added.
+- Choose how offers and cards behave, from the table in [Choices to make](install.md#step-5-the-web-site): offer a walkthrough left part-way again (`reofferUnfinished`), and what **Can't find it?** does (`cantFind`: skip, help or off).
 
 ## How to test it worked
 
@@ -42,6 +43,10 @@ Install Flinders in this product: follow packages/flinders/docs/install.md from 
 5. Record, reload part-way, record a fork and press **Finish**. The tab closes and the draft opens in the admin tab.
 6. Write the words, set the page and make it live. As an ordinary person, take the offer to the end, then reload: it isn't offered again.
 7. Open a link signed in as someone else on web: it says so, and shows no bar.
+8. Start a walkthrough whose first page is another page, from a button. Its offer doesn't appear beside it while the page opens.
+9. With `reofferUnfinished: true`: start a walkthrough from its offer, press Finish later, leave the page and come back. It's offered again. Press Not now: it isn't.
+10. On a page that loads its list after sign-in, step to an element in that list. The card says "Looking for …", then points at the element once it's there.
+11. With `cantFind: false`, wait on a Guide me step: **Can't find it?** never appears. With `'help'`, it explains and offers **Skip this step**.
 
 The full table is checklist item 6 in the [install guide](install.md).
 
