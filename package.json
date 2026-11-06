@@ -1,6 +1,6 @@
 {
   "name": "flinders",
-  "version": "0.1.1",
+  "version": "0.1.3",
   "description": "Open-source product tours and user onboarding over your product's real screens, kept in your own database. Show me, Guide me and recording, for any framework. A self-hosted alternative to Appcues, Pendo and Userpilot.",
   "keywords": [
     "product-tour",
