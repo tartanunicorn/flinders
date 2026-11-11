@@ -72,6 +72,12 @@ export interface WalkthroughHost<W extends ServedWalkthrough> {
   labels?: Partial<WalkthroughLabels>;
   /** True: a walkthrough left part-way is offered again; only Done and Not now stop it. See `offerSeen`. */
   reofferUnfinished?: boolean;
+  /**
+   * On (the default): a walkthrough started part-way through its work (a later page, a pop-out open,
+   * a step already done) starts at the step for what's on screen, never back at its first page.
+   * False: it starts at its first step, or where the person paused.
+   */
+  startFromHere?: boolean;
 }
 
 /** What a product draws from. */
@@ -190,7 +196,8 @@ export class WalkthroughController<W extends ServedWalkthrough> {
   /**
    * Starts a walkthrough the person asked for, by its handle, number or original id: found by the
    * number, so a renamed one still starts. False if there is no such live one, or it couldn't start
-   * (it says so).
+   * (it says so). It starts at the step for what's on screen when the person is part-way through
+   * (`startFromHere`), else where they paused, else at the start. `fromStart` ignores where they paused.
    */
   async start(ref: string, from: WalkthroughFrom, opts: { fromStart?: boolean; startParams?: Record<string, string> } = {}): Promise<boolean> {
     // Playing from now: its first page may take a while to open, and no offer goes up beside it.
@@ -216,6 +223,7 @@ export class WalkthroughController<W extends ServedWalkthrough> {
     const startAt = opts.fromStart ? 0 : resumeStep(w, this.mine?.progress[w.walkthrough_id]);
     const started = await this.play(this.definition(w), {
       startAt,
+      ...(this.host.startFromHere === false ? {} : { fromHere: true }),
       startParams: opts.startParams,
       onEvent: (event, step, reason, params) => {
         void this.record(w, event, step, from);

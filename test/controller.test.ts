@@ -21,7 +21,7 @@ const show = (over: Partial<ServedWalkthrough> = {}): ServedWalkthrough => ({
 });
 const guide = (over: Partial<ServedWalkthrough> = {}) => show({ walkthrough_id: '0192f3a1-0000-7000-8000-000000000002', number: 5, slug: 'guide', title: 'Guide', mode: 'guide', ...over });
 
-function setup(opts: { list?: ServedWalkthrough[]; progress?: PersonWalkthroughs['progress']; progressAfter?: PersonWalkthroughs['progress']; started?: boolean; can?: boolean; paused?: boolean; offers?: boolean; learnMore?: (slug: string) => void; reofferUnfinished?: boolean } = {}) {
+function setup(opts: { list?: ServedWalkthrough[]; progress?: PersonWalkthroughs['progress']; progressAfter?: PersonWalkthroughs['progress']; started?: boolean; can?: boolean; paused?: boolean; offers?: boolean; learnMore?: (slug: string) => void; reofferUnfinished?: boolean; startFromHere?: boolean } = {}) {
   const mine = { offer_walkthroughs: opts.offers ?? true, progress: opts.progress ?? {} };
   const offered: { offer: WalkthroughOffer; answer: (a: OfferAnswer) => void }[] = [];
   const events: [string, string, string | undefined][] = [];
@@ -49,6 +49,7 @@ function setup(opts: { list?: ServedWalkthrough[]; progress?: PersonWalkthroughs
     offersPaused: () => opts.paused ?? false,
     learnMore: opts.learnMore,
     reofferUnfinished: opts.reofferUnfinished,
+    startFromHere: opts.startFromHere,
   });
   const dismissed = () => events.filter((e) => e[1] === 'dismissed').map((e) => e[0]);
   return { controller, offered, events, play, toast, clearOffer, list, dismissed };
@@ -131,6 +132,17 @@ describe('starting', () => {
     const s = setup({ started: false });
     await s.controller.preview({ id: 'x', version: 1, title: 'T', steps: STEPS });
     expect(s.toast).toHaveBeenCalledWith(WALKTHROUGH_LABELS.couldNotStart);
+  });
+
+  it('starts from what is on screen, even when told to start over, unless the product turns it off', async () => {
+    const s = setup();
+    await s.controller.start('1', 'list');
+    await s.controller.start('1', 'chat', { fromStart: true });
+    expect(s.play.mock.calls.map((c) => c[1].fromHere)).toEqual([true, true]);
+
+    const off = setup({ startFromHere: false });
+    await off.controller.start('1', 'list');
+    expect(off.play.mock.calls[0]![1].fromHere).toBeUndefined();
   });
 
   it('picks up a paused walkthrough where it stopped, unless told to start over', async () => {

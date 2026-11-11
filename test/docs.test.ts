@@ -31,7 +31,7 @@ describe('the docs match the code', () => {
 
   it('shows only walkthrough files that would save', () => {
     const app = { anchorExists: () => true, routeExists: () => true };
-    const files = DOCS.flatMap((name) => [...doc(name).matchAll(/```json\n([\s\S]*?)```/g)].map((m) => JSON.parse(m[1]!)));
+    const files = DOCS.flatMap((name) => [...doc(name).matchAll(/```json\r?\n([\s\S]*?)```/g)].map((m) => JSON.parse(m[1]!)));
     expect(files.length).toBeGreaterThan(1);
     for (const file of files) {
       const parsed = createFileSchema().parse(file);

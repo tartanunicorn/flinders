@@ -115,6 +115,11 @@ export interface FlindersConfig<T extends FlindersTypes = DefaultFlindersTypes> 
    * on its page. Only Done and Not now stop it. False (the default): anything they did counts as seen.
    */
   reofferUnfinished?: boolean;
+  /**
+   * On (the default): a walkthrough started part-way through its work (a later page, a pop-out open,
+   * a step already done) starts at the step for what's on screen, not back at its first page. False: from its first step.
+   */
+  startFromHere?: boolean;
   /** Called whenever what the controller shows changes. */
   onChange?(view: WalkthroughsView<T['walkthrough']>): void;
   /** Called whenever what the recording bar shows changes. */
@@ -259,6 +264,7 @@ export function createFlinders<T extends FlindersTypes = DefaultFlindersTypes>(c
     ...(config.onChange ? { onChange: (view: WalkthroughsView<T['walkthrough']>) => config.onChange?.(view) } : {}),
     ...(config.labels ? { labels: config.labels } : {}),
     ...(config.reofferUnfinished ? { reofferUnfinished: true } : {}),
+    ...(config.startFromHere === false ? { startFromHere: false } : {}),
   });
   const controller = api ? new WalkthroughController<T['walkthrough']>(host(api)) : null;
 

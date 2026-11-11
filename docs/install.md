@@ -281,6 +281,8 @@ Inject `Walkthroughs` once in the app's root component so it exists from the fir
 | `lookingNote: false` | `player` | on | After Next or Back, while the next page or element is on its way, the card says "Looking for …" and its buttons wait, so a second press can't skip a step |
 | `lookAlike: true` | `player` | off | A numbered anchor (`row-3`) that isn't on the page falls back to a visible one with the same base name (`row-1`, `row`) |
 | `settle: true` | `player` | off | A new card waits, hidden, until its element has stopped moving (still for 300 ms, at most 3 s), for pages that lay out after they draw |
+| `startFromHere: false` | `createFlinders` | on | Started part-way through its work (a later page, its pop-out open, a step already done), a walkthrough starts at the step for what's on screen, not back on its first page. False starts at its first step, or where the person paused |
+| `reservedParams` | `createFlinders` | none | Route values a `:param` must never capture (`{ templateId: ['company-style'] }`), so a walkthrough never matches a page that reserves them |
 
 ```ts
 createFlinders({

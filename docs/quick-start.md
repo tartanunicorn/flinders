@@ -11,10 +11,10 @@ npm install
 npm pack
 ```
 
-`npm pack` builds it and writes `flinders-0.1.3.tgz`. Keep that file in your repo, then from your app:
+`npm pack` builds it and writes `flinders-0.2.0.tgz`. Keep that file in your repo, then from your app:
 
 ```sh
-npm install ./vendor/flinders-0.1.3.tgz pg express
+npm install ./vendor/flinders-0.2.0.tgz pg express
 ```
 
 ## 2. Create the tables
