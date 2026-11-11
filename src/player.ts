@@ -2,10 +2,11 @@ import type { Driver, PopoverDOM } from 'driver.js';
 
 import type { WalkthroughContext } from './context.js';
 import { forkAround, pathAround, samePath, stepPlaces } from './paths.js';
-import { buildRoute, matchRoute, paramsFromUrl } from './routes.js';
+import { buildRoute, matchRoute, paramsFromUrl, type ReservedParams } from './routes.js';
 import type { DoneWhen, StepHow, WalkthroughMode, WalkthroughStep } from './types.js';
 
 export { buildRoute, matchRoute, paramsFromUrl };
+export type { ReservedParams };
 
 /** What the player needs from the product it runs in. */
 export interface PlayerHost {
@@ -38,6 +39,8 @@ export interface PlayerHost {
   anchorAttribute?: string;
   /** The switch to the phone layout; COMPACT_QUERY by default. */
   compactQuery?: string;
+  /** Values a `:param` must never capture, so a route never matches a page that reserves them (`{ templateId: ['company-style'] }`). */
+  reservedParams?: ReservedParams;
   /**
    * Called as a walkthrough starts, before its first page opens or its first card is drawn (not for
    * `showMe` and `confirm` cards). `createFlinders` uses it to take down an offer it has overtaken.
@@ -399,7 +402,7 @@ export class WalkthroughPlayer {
       resuming: (opts.startAt ?? 0) > 0,
       token: 0,
       // Ids the current page already gives the walkthrough's routes (started on a project → its settings).
-      params: Object.assign({}, opts.startParams, ...walkthrough.steps.flatMap((s) => (s.route ? [paramsFromUrl(s.route, this.host.url())] : []))),
+      params: Object.assign({}, opts.startParams, ...walkthrough.steps.flatMap((s) => (s.route ? [paramsFromUrl(s.route, this.host.url(), this.host.reservedParams)] : []))),
       how: null,
       place: this.host.url().split(/[?#]/)[0] ?? '',
       navigating: false,
@@ -741,7 +744,7 @@ export class WalkthroughPlayer {
       if (step === 'skip') return false;
       const turn = this.pathTurn(run, at);
       if (turn === 'pass') return false;
-      if (!step.only_if || turn === 'play' || (route && !matchRoute(route, url))) return true;
+      if (!step.only_if || turn === 'play' || (route && !matchRoute(route, url, this.host.reservedParams))) return true;
       return [step.only_if].flat().some((anchor) => findElement(anchor, this.host.anchorAttribute));
     });
   }
@@ -957,7 +960,7 @@ export class WalkthroughPlayer {
   /** Navigates to the step's route when the page isn't on it. False when the URL can't be built. */
   private async toRoute(run: Run, pattern: string | undefined): Promise<boolean> {
     if (!pattern) return true;
-    const here = matchRoute(pattern, this.host.url());
+    const here = matchRoute(pattern, this.host.url(), this.host.reservedParams);
     if (here) {
       Object.assign(run.params, here);
       return true;
@@ -967,7 +970,7 @@ export class WalkthroughPlayer {
     run.navigating = true;
     try {
       const ok = await this.host.navigate(url);
-      const params = ok ? matchRoute(pattern, this.host.url()) : null;
+      const params = ok ? matchRoute(pattern, this.host.url(), this.host.reservedParams) : null;
       if (params) Object.assign(run.params, params);
       return !!params;
     } finally {
@@ -1219,7 +1222,7 @@ export class WalkthroughPlayer {
       const done = steps[run.index]?.done_when;
       // A step with no route of its own is on the last page the run knew. Only the path counts: a changed query isn't leaving.
       const here = [steps[run.index]?.route ?? run.place, steps[run.index + 1]?.route, done?.kind === 'route' ? done.route : undefined].filter((r): r is string => !!r);
-      const match = here.find((r) => matchRoute(r, url));
+      const match = here.find((r) => matchRoute(r, url, this.host.reservedParams));
       if (match) run.place = match;
       else this.end('paused', 'left');
     });

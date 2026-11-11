@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { checklistFor, findWalkthrough, offerSeen, matchWalkthroughs, missingRouteParam, parseWalkthroughRef, resumeStep, walkthroughFirstRoute, walkthroughToOffer } from '../src/index.js';
+import { checklistFor, findWalkthrough, matchRoute, matchWalkthroughs, missingRouteParam, offerSeen, optionIsHere, paramsFromUrl, parseWalkthroughRef, resumeStep, walkthroughFirstRoute, walkthroughIsHere, walkthroughOption, walkthroughToOffer } from '../src/index.js';
 import type { ChecklistRow, Walkthrough, WalkthroughProgress } from '../src/index.js';
 
 const step = { anchor: null, title: 'Sign off', body: 'Body.', missing: 'centred' as const };
@@ -83,6 +83,61 @@ describe('matchWalkthroughs', () => {
 
   it('a number names one walkthrough', () => {
     expect(matchWalkthroughs([make(1), make(4)], '/', '4').map((m) => m.walkthrough.number)).toEqual([4]);
+  });
+});
+
+// A product can reserve values a `:param` must never capture, so a route never matches a page that
+// owns that segment: `/templates/company-style/*` is its own page, not a `/templates/:templateId/*`
+// template, so without reserving "company-style" a report-template walkthrough is offered and breaks there.
+describe('reserved route params', () => {
+  const reserved = { templateId: ['company-style'] };
+
+  it('matchRoute: a :param never captures a reserved value, but real ids still match', () => {
+    expect(matchRoute('/templates/:templateId/versions', '/templates/company-style/versions', reserved)).toBeNull();
+    expect(matchRoute('/templates/:templateId/versions', '/templates/dsi-interpretive/versions', reserved)).toEqual({ templateId: 'dsi-interpretive' });
+    // A literal segment is unaffected; and with nothing reserved it matches as before.
+    expect(matchRoute('/templates/company-style/:tab', '/templates/company-style/versions', reserved)).toEqual({ tab: 'versions' });
+    expect(matchRoute('/templates/:templateId/versions', '/templates/company-style/versions')).toEqual({ templateId: 'company-style' });
+  });
+
+  it('paramsFromUrl / missingRouteParam: a reserved value is not a usable id', () => {
+    expect(paramsFromUrl('/templates/:templateId/sections', '/templates/company-style/versions', reserved)).toEqual({});
+    expect(missingRouteParam('/templates/:templateId/sections', '/templates/company-style/versions', reserved)).toBe('templateId');
+    expect(missingRouteParam('/templates/:templateId/sections', '/templates/dsi/sections', reserved)).toBeNull();
+  });
+
+  // The real bug: walkthrough 4 (Report templates, Show me) has a step route /templates/:templateId/versions,
+  // which collides with Company style's own Version history tab at /templates/company-style/versions.
+  const reportTemplates = make(4, { title: 'Report templates', offer_on: '/templates/:templateId/sections', steps: [{ ...step, route: '/templates/:templateId/versions' }] });
+  const companyStyle = make(7, { title: 'Set up Company style', mode: 'guide', offer_on: '/templates/company-style/voice', steps: [{ ...step, route: '/templates/company-style/voice' }] });
+
+  it('walkthroughIsHere: a report-template walkthrough is not "here" on a Company style tab', () => {
+    const url = '/templates/company-style/versions';
+    expect(walkthroughIsHere(reportTemplates, url)).toBe(true); // the bug, without reserving
+    expect(walkthroughIsHere(reportTemplates, url, reserved)).toBe(false); // fixed
+    expect(walkthroughIsHere(reportTemplates, '/templates/dsi/versions', reserved)).toBe(true); // a real template still is
+  });
+
+  it('matchWalkthroughs: the Company style page does not treat the report-template tour as this page\'s', () => {
+    const url = '/templates/company-style/versions';
+    expect(matchWalkthroughs([reportTemplates, companyStyle], url, '', reserved).find((m) => m.walkthrough.number === 4)?.here).toBe(false);
+  });
+
+  it('walkthroughToOffer and checklistFor respect reserved params', () => {
+    // offer_on /templates/:templateId/sections would otherwise fire on /templates/company-style/sections
+    const onSections = make(4, { offer_on: '/templates/:templateId/sections', steps: [{ ...step, route: '/templates/:templateId/sections' }] });
+    const person = { progress: {}, can: () => true };
+    expect(walkthroughToOffer([onSections], '/templates/company-style/sections', person, { reservedParams: reserved })).toBeNull();
+    expect(walkthroughToOffer([onSections], '/templates/dsi/sections', person, { reservedParams: reserved })?.number).toBe(4);
+    // checklistFor can't "start here" when the only route needs a reserved value as its id
+    const list = checklistFor([onSections], {}, () => true, '/templates/company-style/sections', reserved);
+    expect(list).toEqual([]);
+  });
+
+  it('optionIsHere respects reserved params', () => {
+    const option = walkthroughOption(reportTemplates);
+    expect(optionIsHere(option, '/templates/company-style/versions')).toBe(true); // without reserving
+    expect(optionIsHere(option, '/templates/company-style/versions', reserved)).toBe(false); // fixed
   });
 });
 

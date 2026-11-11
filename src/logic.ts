@@ -1,4 +1,4 @@
-import { matchRoute, missingRouteParam } from './routes.js';
+import { matchRoute, missingRouteParam, type ReservedParams } from './routes.js';
 import { WALKTHROUGH_LABELS } from './types.js';
 import type { Walkthrough, WalkthroughLabels, WalkthroughMode, WalkthroughProgress } from './types.js';
 
@@ -42,8 +42,8 @@ export function walkthroughFirstRoute(w: Pick<Walkthrough, 'steps'>): string | n
 }
 
 /** The walkthrough is about this page. */
-export function walkthroughIsHere(w: Pick<Walkthrough, 'offer_on' | 'steps'>, url: string): boolean {
-  return walkthroughRoutes(w).some((r) => !!matchRoute(r, url));
+export function walkthroughIsHere(w: Pick<Walkthrough, 'offer_on' | 'steps'>, url: string, reserved?: ReservedParams): boolean {
+  return walkthroughRoutes(w).some((r) => !!matchRoute(r, url, reserved));
 }
 
 /**
@@ -56,10 +56,11 @@ export function matchWalkthroughs<T extends Pick<Walkthrough, 'walkthrough_id' |
   list: readonly T[],
   url: string,
   topic: string,
+  reserved?: ReservedParams,
 ): { walkthrough: T; here: boolean }[] {
   if (/^\d/.test(topic.trim())) {
     const w = findWalkthrough(list, topic.trim().toLowerCase());
-    return w ? [{ walkthrough: w, here: walkthroughIsHere(w, url) }] : [];
+    return w ? [{ walkthrough: w, here: walkthroughIsHere(w, url, reserved) }] : [];
   }
   const words = topic.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !STOP_WORDS.has(w));
   const scored = list.map((w) => {
@@ -71,7 +72,7 @@ export function matchWalkthroughs<T extends Pick<Walkthrough, 'walkthrough_id' |
       const stem = word.replace(/s$/, '');
       return n + (title.includes(stem) ? 2 : steps.includes(stem) ? 1 : 0);
     }, 0);
-    return { walkthrough: w, here: walkthroughIsHere(w, url), hits };
+    return { walkthrough: w, here: walkthroughIsHere(w, url, reserved), hits };
   });
   return scored
     .filter((x) => (words.length > 0 ? x.hits > 0 : true))
@@ -86,6 +87,8 @@ export interface OfferRules {
    * another page) is offered again. False (the default): any progress counts as seen.
    */
   reofferUnfinished?: boolean;
+  /** Values a route `:param` must never capture, so `offer_on` never matches a page that reserves them. */
+  reservedParams?: ReservedParams;
 }
 
 /**
@@ -112,7 +115,7 @@ export function walkthroughToOffer<T extends Pick<Walkthrough, 'walkthrough_id' 
     list.find(
       (w) =>
         !!w.offer_on &&
-        !!matchRoute(w.offer_on, url) &&
+        !!matchRoute(w.offer_on, url, rules.reservedParams) &&
         (!w.permission || person.can(w.permission)) &&
         !offerSeen(w, person.progress[w.walkthrough_id], rules),
     ) ?? null
@@ -140,6 +143,7 @@ export function checklistFor<T extends Pick<Walkthrough, 'walkthrough_id' | 'num
   progress: Readonly<Record<string, WalkthroughProgress>>,
   can: (permission: string) => boolean,
   url: string,
+  reserved?: ReservedParams,
 ): ChecklistRow<T>[] {
   const finished = (w: T) => {
     const p = progress[w.walkthrough_id];
@@ -147,7 +151,7 @@ export function checklistFor<T extends Pick<Walkthrough, 'walkthrough_id' | 'num
   };
   const canStart = (w: T) => {
     const first = walkthroughFirstRoute(w);
-    return !first || !missingRouteParam(first, url);
+    return !first || !missingRouteParam(first, url, reserved);
   };
   const tasks: T[][] = [];
   for (const w of list.filter((x) => !x.permission || can(x.permission)).sort((a, b) => a.number - b.number)) {

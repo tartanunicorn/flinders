@@ -1,5 +1,5 @@
 import { modeLabel, walkthroughFirstRoute, walkthroughRoutes } from './logic.js';
-import { matchRoute } from './routes.js';
+import { matchRoute, type ReservedParams } from './routes.js';
 import type { Walkthrough, WalkthroughLabels } from './types.js';
 import { WALKTHROUGH_LABELS } from './types.js';
 
@@ -78,8 +78,8 @@ export function walkthroughOption(
 }
 
 /** The option is about this page. Worked out from the page the person is on now, so moving changes it. */
-export function optionIsHere(option: Pick<WalkthroughOption, 'routes'>, url: string): boolean {
-  return option.routes.some((r) => !!matchRoute(r, url));
+export function optionIsHere(option: Pick<WalkthroughOption, 'routes'>, url: string, reserved?: ReservedParams): boolean {
+  return option.routes.some((r) => !!matchRoute(r, url, reserved));
 }
 
 /**
