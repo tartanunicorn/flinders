@@ -4,6 +4,7 @@ import { WalkthroughController, type OfferAnswer, type WalkthroughHost, type Wal
 import { recordingFile } from './editor.js';
 import { createFlindersClient, type DefaultFlindersTypes, type FlindersClient, type FlindersHttp, type FlindersResult, type FlindersTypes } from './http.js';
 import { WalkthroughPlayer, type PlayableWalkthrough, type PlayerHost, type PlayerStartOptions } from './player.js';
+import type { ReservedParams } from './routes.js';
 import { mountRecorderBar, type RecorderBarOptions } from './recorder-bar.js';
 import { RecordingSession, type RecordingSteps, type RecordingView } from './recording-session.js';
 import { startRecording, watchForRecording, type RecordingStart } from './recording-start.js';
@@ -83,6 +84,12 @@ export interface FlindersConfig<T extends FlindersTypes = DefaultFlindersTypes> 
   http?: FlindersHttp;
   /** The router. Without it, there's no player and no recording. */
   router?: FlindersRouter;
+  /**
+   * Values a route `:param` must never capture, so a walkthrough's route never matches a page that
+   * reserves them. `{ templateId: ['company-style'] }` keeps `/templates/:templateId/*` off the
+   * Company style pages at `/templates/company-style/*`, which are a different route. Default: none.
+   */
+  reservedParams?: ReservedParams;
   /** Without it, a walkthrough behind a permission is never shown. */
   identity?: FlindersIdentity;
   /** Where events go. Without it, none are sent. A failure here never reaches the person. */
@@ -108,6 +115,11 @@ export interface FlindersConfig<T extends FlindersTypes = DefaultFlindersTypes> 
    * on its page. Only Done and Not now stop it. False (the default): anything they did counts as seen.
    */
   reofferUnfinished?: boolean;
+  /**
+   * On (the default): a walkthrough started part-way through its work (a later page, a pop-out open,
+   * a step already done) starts at the step for what's on screen, not back at its first page. False: from its first step.
+   */
+  startFromHere?: boolean;
   /** Called whenever what the controller shows changes. */
   onChange?(view: WalkthroughsView<T['walkthrough']>): void;
   /** Called whenever what the recording bar shows changes. */
@@ -180,6 +192,7 @@ export function createFlinders<T extends FlindersTypes = DefaultFlindersTypes>(c
           navigate: (url) => router.navigate(url),
           onNavigated: (listener) => router.onNavigated(listener),
           ...(router.routePattern ? { routePattern: (url: string) => router.routePattern!(url) } : {}),
+          ...(config.reservedParams ? { reservedParams: config.reservedParams } : {}),
           ...look,
           onActive: (active) => {
             playing = !!active;
@@ -247,9 +260,11 @@ export function createFlinders<T extends FlindersTypes = DefaultFlindersTypes>(c
     toast,
     ...(config.learnMore ? { learnMore: (slug: string) => config.learnMore?.(slug) } : {}),
     offersPaused: () => !offers || playing || starting > 0 || !!built?.busy || !!recorder?.view.busy || !!config.pauseOffers?.(),
+    ...(config.reservedParams ? { reservedParams: config.reservedParams } : {}),
     ...(config.onChange ? { onChange: (view: WalkthroughsView<T['walkthrough']>) => config.onChange?.(view) } : {}),
     ...(config.labels ? { labels: config.labels } : {}),
     ...(config.reofferUnfinished ? { reofferUnfinished: true } : {}),
+    ...(config.startFromHere === false ? { startFromHere: false } : {}),
   });
   const controller = api ? new WalkthroughController<T['walkthrough']>(host(api)) : null;
 

@@ -2,10 +2,11 @@ import type { Driver, PopoverDOM } from 'driver.js';
 
 import type { WalkthroughContext } from './context.js';
 import { forkAround, pathAround, samePath, stepPlaces } from './paths.js';
-import { buildRoute, matchRoute, paramsFromUrl } from './routes.js';
+import { buildRoute, matchRoute, paramsFromUrl, type ReservedParams } from './routes.js';
 import type { DoneWhen, StepHow, WalkthroughMode, WalkthroughStep } from './types.js';
 
 export { buildRoute, matchRoute, paramsFromUrl };
+export type { ReservedParams };
 
 /** What the player needs from the product it runs in. */
 export interface PlayerHost {
@@ -38,6 +39,8 @@ export interface PlayerHost {
   anchorAttribute?: string;
   /** The switch to the phone layout; COMPACT_QUERY by default. */
   compactQuery?: string;
+  /** Values a `:param` must never capture, so a route never matches a page that reserves them (`{ templateId: ['company-style'] }`). */
+  reservedParams?: ReservedParams;
   /**
    * Called as a walkthrough starts, before its first page opens or its first card is drawn (not for
    * `showMe` and `confirm` cards). `createFlinders` uses it to take down an offer it has overtaken.
@@ -159,6 +162,12 @@ export type PlayerStopReason = 'left';
 export interface PlayerStartOptions {
   /** Pick up where the person left off. */
   startAt?: number;
+  /**
+   * Start where the person already is: on a page (or in a pop-out) part-way through the walkthrough,
+   * it starts at the step for what's on screen (`placeOnScreen`) rather than sending them back to
+   * its first page. On its first page with nothing done yet, or on none of its pages, `startAt` stands.
+   */
+  fromHere?: boolean;
   /** The ids the walkthrough's routes need (`projectId`, …): a run's own, to carry on where it was left. */
   startParams?: Record<string, string>;
   /** Told about every start, pause and finish, so the app can save progress. With `left`, the run's ids, for `startParams`. */
@@ -261,6 +270,8 @@ interface Run {
   shown: { title: string; body: string; element: string | null };
   /** Picking up part-way: the step's element may be in a pop-out that's no longer open. */
   resuming: boolean;
+  /** Started from what's on screen (`fromHere`): a missing element shows the card without it, never starts again from the first step. */
+  fromScreen: boolean;
   /** Bumped on every move, so a step still waiting for its element knows it has been overtaken. */
   token: number;
   /** Route params seen so far (`projectId`, …), to build the next step's URL. */
@@ -384,6 +395,9 @@ export class WalkthroughPlayer {
     live.setAttribute('data-flinders-live', '');
     document.body.appendChild(live);
 
+    // Part-way through it already (a later page, a pop-out open, a step done): start there.
+    const here = opts.fromHere ? placeOnScreen(walkthrough.steps, this.host.url(), { reserved: this.host.reservedParams, attribute: this.host.anchorAttribute, compact: this.compact }) : null;
+    const first = here ? here : (opts.startAt ?? 0);
     const run: Run = {
       walkthrough,
       opts,
@@ -393,13 +407,14 @@ export class WalkthroughPlayer {
       refit: null,
       held: false,
       // Picking up part-way: the steps before it were done on an earlier run. A fork's may not have been.
-      done: new Set(walkthrough.steps.flatMap((step, at) => (at < (opts.startAt ?? 0) && !step.only_if ? [at] : []))),
+      done: new Set(walkthrough.steps.flatMap((step, at) => (at < first && !step.only_if ? [at] : []))),
       seen: new Set(),
       shown: { title: '', body: '', element: null },
-      resuming: (opts.startAt ?? 0) > 0,
+      resuming: first > 0,
+      fromScreen: !!here,
       token: 0,
       // Ids the current page already gives the walkthrough's routes (started on a project → its settings).
-      params: Object.assign({}, opts.startParams, ...walkthrough.steps.flatMap((s) => (s.route ? [paramsFromUrl(s.route, this.host.url())] : []))),
+      params: Object.assign({}, opts.startParams, ...walkthrough.steps.flatMap((s) => (s.route ? [paramsFromUrl(s.route, this.host.url(), this.host.reservedParams)] : []))),
       how: null,
       place: this.host.url().split(/[?#]/)[0] ?? '',
       navigating: false,
@@ -416,7 +431,7 @@ export class WalkthroughPlayer {
     };
     this.run = run;
     this.listen(run);
-    const startAt = Math.min(Math.max(opts.startAt ?? 0, 0), walkthrough.steps.length - 1);
+    const startAt = Math.min(Math.max(first, 0), walkthrough.steps.length - 1);
     opts.onEvent?.('started', startAt);
     await this.go(startAt, 1);
     return run.index >= 0 || attempt !== this.attempt;
@@ -571,7 +586,7 @@ export class WalkthroughPlayer {
       // A fork: give an element just opened by the last step time to appear, then skip if none did.
       const shown = await waitForElement(step.only_if!, settled && !step.route ? 0 : APPEAR_WAIT_MS, () => run.token !== token, this.host.anchorAttribute);
       if (run.token !== token) return;
-      if (!shown && run.resuming) {
+      if (!shown && run.resuming && !run.fromScreen) {
         // Paused inside a pop-out that has since closed: start again rather than show nothing.
         run.resuming = false;
         await this.go(0, 1);
@@ -602,7 +617,7 @@ export class WalkthroughPlayer {
         element = await waitForElement(fallback.alt, APPEAR_WAIT_MS, () => run.token !== token, this.host.anchorAttribute);
         if (run.token !== token) return;
       }
-      if (!element && run.resuming) {
+      if (!element && run.resuming && !run.fromScreen) {
         // Paused inside a pop-out that has since closed: start again rather than show nothing.
         run.resuming = false;
         await this.go(0, 1);
@@ -741,7 +756,7 @@ export class WalkthroughPlayer {
       if (step === 'skip') return false;
       const turn = this.pathTurn(run, at);
       if (turn === 'pass') return false;
-      if (!step.only_if || turn === 'play' || (route && !matchRoute(route, url))) return true;
+      if (!step.only_if || turn === 'play' || (route && !matchRoute(route, url, this.host.reservedParams))) return true;
       return [step.only_if].flat().some((anchor) => findElement(anchor, this.host.anchorAttribute));
     });
   }
@@ -957,7 +972,7 @@ export class WalkthroughPlayer {
   /** Navigates to the step's route when the page isn't on it. False when the URL can't be built. */
   private async toRoute(run: Run, pattern: string | undefined): Promise<boolean> {
     if (!pattern) return true;
-    const here = matchRoute(pattern, this.host.url());
+    const here = matchRoute(pattern, this.host.url(), this.host.reservedParams);
     if (here) {
       Object.assign(run.params, here);
       return true;
@@ -967,7 +982,7 @@ export class WalkthroughPlayer {
     run.navigating = true;
     try {
       const ok = await this.host.navigate(url);
-      const params = ok ? matchRoute(pattern, this.host.url()) : null;
+      const params = ok ? matchRoute(pattern, this.host.url(), this.host.reservedParams) : null;
       if (params) Object.assign(run.params, params);
       return !!params;
     } finally {
@@ -1219,7 +1234,7 @@ export class WalkthroughPlayer {
       const done = steps[run.index]?.done_when;
       // A step with no route of its own is on the last page the run knew. Only the path counts: a changed query isn't leaving.
       const here = [steps[run.index]?.route ?? run.place, steps[run.index + 1]?.route, done?.kind === 'route' ? done.route : undefined].filter((r): r is string => !!r);
-      const match = here.find((r) => matchRoute(r, url));
+      const match = here.find((r) => matchRoute(r, url, this.host.reservedParams));
       if (match) run.place = match;
       else this.end('paused', 'left');
     });
@@ -1300,6 +1315,54 @@ function untilStill(element: HTMLElement, cancelled: () => boolean): Promise<voi
       }
     }, 50);
   });
+}
+
+/**
+ * Where a walkthrough stands on the screen as it is now, so starting it never sends the person back
+ * to its first page when they're part-way through: the index of the step to start at, or null when
+ * the person is on none of its pages.
+ *
+ * 1. The steps on this page. A step's page is its own `route`, else the page the step before it is
+ *    on, or the one a `done_when: route` step before it leads to. A walkthrough with no routes is on every page.
+ * 2. With a pop-out open, only what's in it counts (a button under the pop-out was the way in).
+ * 3. The last of those steps the person has already done (`done_when` met: a field filled, a choice
+ *    made, something appeared) is behind them.
+ * 4. Start at the first step after it that's on screen (a fork's path only if its `only_if` is),
+ *    else the first step on this page after it.
+ * @internal
+ */
+export function placeOnScreen(steps: readonly WalkthroughStep[], url: string, opts: { reserved?: ReservedParams; attribute?: string; compact?: boolean } = {}): number | null {
+  const { reserved, attribute, compact } = opts;
+  const pages: (string | null)[] = [];
+  let page: string | null = null;
+  steps.forEach((step, at) => {
+    page = step.route ?? page;
+    pages[at] = page;
+    if (step.done_when?.kind === 'route') page = step.done_when.route;
+  });
+  const here = steps.flatMap((step, at) => (compact && step.phone === 'skip') || (pages[at] && !matchRoute(pages[at]!, url, reserved)) ? [] : [at]);
+  if (!here.length) return null;
+  const dialog = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]:not(.driver-popover)')).find((d) => {
+    const box = d.getBoundingClientRect();
+    return box.width > 0 && box.height > 0;
+  });
+  const shown = (anchor: string): HTMLElement | null => {
+    const el = findElement(anchor, attribute);
+    return el && (!dialog || dialog.contains(el)) ? el : null;
+  };
+  const plays = (step: WalkthroughStep) => !step.only_if || [step.only_if].flat().some((anchor) => !!shown(anchor));
+  const done = here.filter((at) => {
+    const step = steps[at]!;
+    const when = step.done_when;
+    // A click leaves nothing behind to see.
+    if (!when || when.kind === 'clicked' || !plays(step)) return false;
+    const element = step.anchor ? shown(step.anchor) : null;
+    if (when.kind !== 'route' && when.kind !== 'appears' && !element) return false;
+    return doneWhenMet(when, element, url, attribute);
+  });
+  const after = done.length ? Math.max(...done) : -1;
+  const next = here.find((at) => at > after && plays(steps[at]!) && !!steps[at]!.anchor && !!shown(steps[at]!.anchor!));
+  return next ?? here.find((at) => at > after) ?? here[here.length - 1]!;
 }
 
 /**

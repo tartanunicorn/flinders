@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { dockClearOfControls, doneWhenMet, leaderEnds, overlapArea, stepPlace, WalkthroughPlayer, type DockLayout, type Rect, type PlayerCard, type PlayableWalkthrough, type PlayerEvent, type PlayerHost } from '../src/player.js';
+import { buildRoute, dockClearOfControls, doneWhenMet, leaderEnds, overlapArea, paramsFromUrl, stepPlace, WalkthroughPlayer, type DockLayout, type Rect, type PlayerCard, type PlayableWalkthrough, type PlayerEvent, type PlayerHost } from '../src/player.js';
 import type { StepHow } from '../src/types.js';
 
 const step = (anchor: string | null, title: string, extra: object = {}) => ({ anchor, title, body: 'Body.', missing: 'centred' as const, ...extra });
@@ -1010,7 +1010,7 @@ describe('doneWhenMet', () => {
   });
 });
 
-describe('WalkthroughPlayer, fixes from the TabLogs rollout', () => {
+describe('WalkthroughPlayer, fixes from the first rollouts', () => {
   let moves: [number, StepHow][];
   let events: [PlayerEvent, number][];
   let player: WalkthroughPlayer;
@@ -1233,5 +1233,42 @@ describe('WalkthroughPlayer, fixes from the TabLogs rollout', () => {
     void player.showMe('one');
     await flush(1000);
     expect(started).toEqual(['w1']);
+  });
+});
+
+// A report-template walkthrough (/templates/:templateId/*) started on a Company style page must not
+// fill :templateId with the reserved "company-style" segment and navigate to a broken template URL.
+// The primitives below show the mechanism without reserving; the player test shows the fix in effect.
+describe('reserved route params', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('without reserving, the step route is built from the Company style URL (the bug)', () => {
+    const url = '/templates/company-style/versions';
+    expect(paramsFromUrl('/templates/:templateId/sections', url)).toEqual({ templateId: 'company-style' });
+    expect(buildRoute('/templates/:templateId/sections', paramsFromUrl('/templates/:templateId/sections', url))).toBe('/templates/company-style/sections');
+  });
+
+  it('with company-style reserved, the player never navigates to the broken template URL', async () => {
+    let url = '/templates/company-style/versions';
+    const navigations: string[] = [];
+    const player = new WalkthroughPlayer({
+      url: () => url,
+      navigate: async (to) => {
+        navigations.push(to);
+        url = to;
+        return true;
+      },
+      onNavigated: () => () => undefined,
+      reservedParams: { templateId: ['company-style'] },
+    });
+    // The step's anchor isn't on the Company style page, so the player would try to navigate to find it.
+    page('<main>Company style version history</main>');
+    const started = player.start({ id: 'w4', version: 1, title: 'Report templates', mode: 'show', steps: [step('template-sections', 'How a section is built', { route: '/templates/:templateId/sections' })] });
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(await started).toBe(false);
+    expect(navigations).not.toContain('/templates/company-style/sections');
+    expect(url).toBe('/templates/company-style/versions');
+    player.stop();
   });
 });

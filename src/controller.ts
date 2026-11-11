@@ -1,6 +1,6 @@
 import { checklistFor, findWalkthrough, matchWalkthroughs, modeLabel, offerSeen, resumeStep, walkthroughToOffer } from './logic.js';
 import type { PlayableWalkthrough, PlayerEvent, PlayerStartOptions } from './player.js';
-import { matchRoute } from './routes.js';
+import { matchRoute, type ReservedParams } from './routes.js';
 import type { StepHow, Walkthrough, WalkthroughFrom, WalkthroughLabels, WalkthroughProgress } from './types.js';
 import { WALKTHROUGH_LABELS } from './types.js';
 
@@ -64,12 +64,20 @@ export interface WalkthroughHost<W extends ServedWalkthrough> {
   toast(message: string): void;
   /** Nothing is offered while this is true: a walkthrough is playing, one is being recorded, nobody is signed in yet. */
   offersPaused(): boolean;
+  /** Values a `:param` must never capture, so a route never matches a page that reserves them (`{ templateId: ['company-style'] }`). */
+  reservedParams?: ReservedParams;
   /** Called whenever the view changes, so a product can keep it in its own state. */
   onChange?(view: WalkthroughsView<W>): void;
   /** The controller's words, each with a default. */
   labels?: Partial<WalkthroughLabels>;
   /** True: a walkthrough left part-way is offered again; only Done and Not now stop it. See `offerSeen`. */
   reofferUnfinished?: boolean;
+  /**
+   * On (the default): a walkthrough started part-way through its work (a later page, a pop-out open,
+   * a step already done) starts at the step for what's on screen, never back at its first page.
+   * False: it starts at its first step, or where the person paused.
+   */
+  startFromHere?: boolean;
 }
 
 /** What a product draws from. */
@@ -133,7 +141,7 @@ export class WalkthroughController<W extends ServedWalkthrough> {
 
   /** The person's list from this URL: one row per task, ticked as they finish. Empty until their progress has loaded, and once nothing startable is left to do. */
   checklist(url: string) {
-    return this.mine ? checklistFor(this.list, this.mine.progress, (permission) => this.host.can(permission), url) : [];
+    return this.mine ? checklistFor(this.list, this.mine.progress, (permission) => this.host.can(permission), url, this.host.reservedParams) : [];
   }
 
   /** Loads the live walkthroughs and the person's progress. A failure leaves walkthroughs off, never breaks a page. */
@@ -188,7 +196,8 @@ export class WalkthroughController<W extends ServedWalkthrough> {
   /**
    * Starts a walkthrough the person asked for, by its handle, number or original id: found by the
    * number, so a renamed one still starts. False if there is no such live one, or it couldn't start
-   * (it says so).
+   * (it says so). It starts at the step for what's on screen when the person is part-way through
+   * (`startFromHere`), else where they paused, else at the start. `fromStart` ignores where they paused.
    */
   async start(ref: string, from: WalkthroughFrom, opts: { fromStart?: boolean; startParams?: Record<string, string> } = {}): Promise<boolean> {
     // Playing from now: its first page may take a while to open, and no offer goes up beside it.
@@ -214,6 +223,7 @@ export class WalkthroughController<W extends ServedWalkthrough> {
     const startAt = opts.fromStart ? 0 : resumeStep(w, this.mine?.progress[w.walkthrough_id]);
     const started = await this.play(this.definition(w), {
       startAt,
+      ...(this.host.startFromHere === false ? {} : { fromHere: true }),
       startParams: opts.startParams,
       onEvent: (event, step, reason, params) => {
         void this.record(w, event, step, from);
@@ -254,7 +264,7 @@ export class WalkthroughController<W extends ServedWalkthrough> {
     const pending = this.pendingPreview;
     if (!pending) return false;
     const route = pending.steps.find((s) => s.route)?.route;
-    if (route && !matchRoute(route, url)) return false;
+    if (route && !matchRoute(route, url, this.host.reservedParams)) return false;
     this.pendingPreview = null;
     await this.play(pending);
     return true;
@@ -269,7 +279,7 @@ export class WalkthroughController<W extends ServedWalkthrough> {
     // They moved on while it loaded, or started something: only the page they're on now gets an offer, and only when nothing is playing.
     if (page !== this.offerPage || this.offering || this.paused()) return;
     if (!(this.mine?.offer_walkthroughs ?? true)) return;
-    const w = walkthroughToOffer(this.list, url, { progress: this.mine?.progress ?? {}, can: (permission) => this.host.can(permission) }, { reofferUnfinished: this.host.reofferUnfinished });
+    const w = walkthroughToOffer(this.list, url, { progress: this.mine?.progress ?? {}, can: (permission) => this.host.can(permission) }, { reofferUnfinished: this.host.reofferUnfinished, reservedParams: this.host.reservedParams });
     if (!w) return;
     // The same page's other kind goes beside it, if it hasn't been seen either: Guide me is the main button, as people here came to work.
     const other = this.list.find((x) => x.walkthrough_id !== w.walkthrough_id && x.offer_on === w.offer_on && x.mode !== w.mode && this.unseen(x) && (!x.permission || this.host.can(x.permission)));
@@ -319,7 +329,7 @@ export class WalkthroughController<W extends ServedWalkthrough> {
   /** The walkthroughs for a chat request: see `matchWalkthroughs`. Loads first if it has to. */
   async matching(url: string, topic: string): Promise<{ walkthrough: W; here: boolean }[]> {
     if (this.state !== 'loaded') await this.load();
-    return matchWalkthroughs(this.list, url, topic);
+    return matchWalkthroughs(this.list, url, topic, this.host.reservedParams);
   }
 
   /** Plays a walkthrough; says so when it couldn't start, rather than nothing happening. An offer still up has been overtaken. */

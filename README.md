@@ -29,8 +29,8 @@ You need Node 20+, Postgres 15+ and an app with a client-side router. The server
 Build a package from a copy of this folder, then add it to your app:
 
 ```sh
-cd flinders && npm install && npm pack          # gives flinders-0.1.3.tgz
-cd ../your-app && npm install ../flinders/flinders-0.1.3.tgz pg express
+cd flinders && npm install && npm pack          # gives flinders-0.2.0.tgz
+cd ../your-app && npm install ../flinders/flinders-0.2.0.tgz pg express
 psql "$DATABASE_URL" -f node_modules/flinders/sql/001_walkthroughs.sql
 ```
 

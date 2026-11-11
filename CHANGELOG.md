@@ -2,6 +2,14 @@
 
 Each version says what changed and what to do. Flinders follows [semantic versions](https://semver.org): before 1.0, a minor version can break things.
 
+## 0.2.0
+
+- **Starting part-way never sends the person back to the first page.** A walkthrough started while the person is already part-way through its work (on a later page, with its pop-out open, or with a step already done) starts at the step for what's on screen, and doesn't go to its first page. New `placeOnScreen()` works it out from each step's page (its `route`, or the page a `done_when: route` step led to), the open pop-out, and which `done_when` steps are already met. On its first page with nothing done, it starts as before (or where the person paused). A missing element on that step shows the card without it, rather than starting again from step 1. On by default: `startFromHere: false` on `createFlinders` (or the controller's host) keeps the old behaviour, and the player takes `fromHere` in `PlayerStartOptions`. `controller.start(…, { fromStart: true })` now means "not where they paused", and still starts from what's on screen.
+- **Reserved route params.** `reservedParams` (`{ templateId: ['company-style'] }`) on `createFlinders`, the player host and the controller host keeps a route like `/templates/:templateId/sections` off a page such as `/templates/company-style/sections` that has routes of its own. `matchRoute`, `paramsFromUrl`, `walkthroughIsHere`, `optionIsHere`, `matchWalkthroughs` and `checklistFor` take it, and `walkthroughToOffer` takes it as `rules.reservedParams`. Default: none.
+- The docs test reads files with Windows line endings too.
+
+What to do: nothing, unless you want the old start (`startFromHere: false`) or have pages that reserve route values. Before 1.0 a minor version can change behaviour, and starting part-way does.
+
 ## 0.1.3
 
 Fixes from the first product rollout. Every change of behaviour has an option that keeps the old one.
