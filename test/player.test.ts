@@ -1010,7 +1010,7 @@ describe('doneWhenMet', () => {
   });
 });
 
-describe('WalkthroughPlayer, fixes from the TabLogs rollout', () => {
+describe('WalkthroughPlayer, fixes from the first rollouts', () => {
   let moves: [number, StepHow][];
   let events: [PlayerEvent, number][];
   let player: WalkthroughPlayer;
